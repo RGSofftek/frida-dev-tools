@@ -88,3 +88,91 @@ catch as ex
     Excel Append from WSProcessed at [1 ="<<<rowNum>>>", 2 ="FAIL", 3 ="<<<ex>>>"]
 end
 ```
+
+## SAP Deferred Validation (Experimental)
+
+SAP accepts input into fields without immediate validation. Errors only surface when you trigger an action:
+- `SendKey 0` (Enter)
+- Button clicks
+- Screen transitions
+
+This means multiple fields can be wrong, but you won't know until the validation trigger.
+
+### Pattern: Status Bar Check After Validation
+
+After each `SendKey 0` or button click that triggers validation, read the status bar:
+
+```
+SAP WriteText ElementId wnd[0]/usr/ctxtField1 Text "<<<value1>>>"
+SAP WriteText ElementId wnd[0]/usr/ctxtField2 Text "<<<value2>>>"
+SAP SendKey 0
+
+SAP ReadStatus as statusMsg
+if ("<<<statusMsg>>>" -like "*Error*")
+    Throw "Entry Screen: <<<statusMsg>>>"
+end
+```
+
+### Pattern: Step Tracking for Diagnostics
+
+Track which step failed so error logs are actionable:
+
+```
+DefineVariable as "currentStep" with the value ""
+
+try
+    DefineVariable as "currentStep" with the value "Entry Screen"
+    SAP WriteText ElementId wnd[0]/usr/ctxtP_ORG1 Text "<<<orgData>>>"
+    SAP SendKey 0
+    SAP ReadStatus as statusMsg
+    if ("<<<statusMsg>>>" -like "*Error*")
+        Throw "<<<statusMsg>>>"
+    end
+
+    DefineVariable as "currentStep" with the value "Header Details"
+    SAP WriteText ElementId wnd[0]/usr/ctxtField Text "<<<material>>>"
+    SAP SendKey 0
+    SAP ReadStatus as statusMsg
+    if ("<<<statusMsg>>>" -like "*Error*")
+        Throw "<<<statusMsg>>>"
+    end
+
+catch as ex
+    Excel Append from WSProcessed at [1 ="<<<rowNum>>>", 2 ="FAIL", 3 ="<<<currentStep>>>: <<<ex>>>"]
+end
+```
+
+## Transaction Recovery (Experimental)
+
+When a row fails mid-transaction, reset SAP state before the next row:
+
+```
+catch as ex
+    Titanium CaptureImage and save as <<<evidenceDir>>>\error_<<<rowNum>>>.png
+    Excel Append from WSProcessed at [1 ="<<<rowNum>>>", 2 ="FAIL", 3 ="<<<currentStep>>>: <<<ex>>>"]
+    Excel Save WB
+
+    ## Reset transaction state
+    try
+        SAP SendKey F12
+    catch
+        ## Ignore - StartTransaction will reset anyway
+    end
+end
+```
+
+For reliable state reset, prefer restarting the transaction at each loop iteration:
+
+```
+for <<<count>>> times {
+    SAP StartTransaction ZWB21
+    ## Fresh state guaranteed
+}
+```
+
+## Pre-Validation vs Post-Validation
+
+- **Pre-validation** (before `WriteText`): Catches obvious issues - empty required fields, wrong formats
+- **Post-validation** (after `SendKey`/button): Catches SAP-specific errors - invalid codes, business rule violations, missing master data
+
+Use both strategies together for robust error handling.

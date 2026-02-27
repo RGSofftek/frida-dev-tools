@@ -223,11 +223,15 @@ for <<<Remaining>>> times {
 
 
 	#%region CREATE CONTRACT IN SAP ───────────────────────────────────────────
+	DefineVariable as "currentStep" with the value "Init"
+
 	try
 		## Reset to transaction for each record so navigation is consistent
+		DefineVariable as "currentStep" with the value "Start Transaction"
 		SAP StartTransaction zwb21
 
 		#%region Entry Screen (type + org) ───────────────────────────────────
+		DefineVariable as "currentStep" with the value "Entry Screen"
 		## Contract Type (robust check: starts with P)
 		if ("<<<contractType>>>" -like "P*")
 			SAP SelectComboBox id wnd[0]/usr/cmbP_LSCTP1 P
@@ -238,11 +242,16 @@ for <<<Remaining>>> times {
 		SAP WriteText ElementId wnd[0]/usr/ctxtP_ORG1 Text "<<<orgData>>>"
 		SAP WriteText ElementId wnd[0]/usr/ctxtP_PGRP1 Text "<<<purchasingGroup>>>"
 		SAP SendKey 0
+		SAP ReadStatus as statusMsg
+		if ("<<<statusMsg>>>" -like "*Error*")
+			Throw "<<<statusMsg>>>"
+		end
 		SAP ClickButton id wnd[0]/tbar[1]/btn[8]
 		#%endregion
 
 
 		#%region Header Details ──────────────────────────────────────────────
+		DefineVariable as "currentStep" with the value "Header Details (Basic)"
 		if ("<<<priceType>>>" -eq "FLAT")
 			SAP SelectComboBox id wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/cmbSG_HEADER_DETAILS-LSPRG 1
 		else
@@ -255,7 +264,12 @@ for <<<Remaining>>> times {
 		SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/txtSG_HEADER_DETAILS-MENGE Text "<<<quantity>>>"
 		SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-LIFNR Text "<<<bp>>>"
 		SAP SendKey 0
+		SAP ReadStatus as statusMsg
+		if ("<<<statusMsg>>>" -like "*Error*")
+			Throw "<<<statusMsg>>>"
+		end
 
+		DefineVariable as "currentStep" with the value "Header Details (Dates/Terms)"
 		SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-DATE_FROM Text "<<<deliveryPeriodFrom>>>"
 		SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-DATE_TO Text "<<<deliveryPeriodTo>>>"
 		SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-TERM Text "<<<paymentTerms>>>"
@@ -265,10 +279,15 @@ for <<<Remaining>>> times {
 		SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-CITY_ORIGIN Text "<<<origin>>>"
 		SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-CITY_DESTINATION Text "<<<destination>>>"
 		SAP SendKey 0
+		SAP ReadStatus as statusMsg
+		if ("<<<statusMsg>>>" -like "*Error*")
+			Throw "<<<statusMsg>>>"
+		end
 		#%endregion
 
 
 		#%region Characteristics ─────────────────────────────────────────────
+		DefineVariable as "currentStep" with the value "Characteristics"
 		## Apply provided characteristics to SAP table where names match.
 		SAP ClickButton id wnd[0]/tbar[1]/btn[7]
 
@@ -330,6 +349,7 @@ for <<<Remaining>>> times {
 
 
 		#%region Price Details ───────────────────────────────────────────────
+		DefineVariable as "currentStep" with the value "Price Details (Header)"
 		SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/ctxtSG_HEADER_PRICE_SC-COVER_MONTH_VAL Text "<<<coverMonth>>>"
 
 		## Market Price normalized for SAP decimal format (if needed)
@@ -338,10 +358,19 @@ for <<<Remaining>>> times {
 
 		SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/txtSG_HEADER_PRICE_SC-FX Text "<<<fx>>>"
 		SAP SendKey 0
+		SAP ReadStatus as statusMsg
+		if ("<<<statusMsg>>>" -like "*Error*")
+			Throw "<<<statusMsg>>>"
+		end
 
+		DefineVariable as "currentStep" with the value "Price Details (BID)"
 		SAP WriteText ElementId wnd[0]/usr/subSS_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:7000/txt<SG>-BID-BASE_PRICE_VAL Text "<<<bidPrice>>>"
 		SAP WriteText ElementId wnd[0]/usr/subSS_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:7000/txt<SG>-BID-CUPSCORE_VAL Text "<<<cupScorePremium>>>"
 		SAP SendKey 0
+		SAP ReadStatus as statusMsg
+		if ("<<<statusMsg>>>" -like "*Error*")
+			Throw "<<<statusMsg>>>"
+		end
 
 		SAP ClickButton id wnd[0]/tbar[1]/btn[8]
 		SAP ClickButton id wnd[1]/usr/btnBUTTON_1
@@ -349,6 +378,7 @@ for <<<Remaining>>> times {
 
 
 		#%region Texts ───────────────────────────────────────────────────────
+		DefineVariable as "currentStep" with the value "Texts"
 		SAP SelectTab id "wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT"
 
 		## General Remarks
@@ -374,6 +404,7 @@ for <<<Remaining>>> times {
 
 
 		#%region Rules ───────────────────────────────────────────────────────
+		DefineVariable as "currentStep" with the value "Rules"
 		SAP SelectTab id "wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpAOHD"
 
 		SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT14
@@ -397,6 +428,7 @@ for <<<Remaining>>> times {
 
 
 		#%region Finalize / Save ──────────────────────────────────────────────
+		DefineVariable as "currentStep" with the value "Finalize/Save"
 		SAP ClickButton id wnd[0]/tbar[0]/btn[11]
 		SAP ClickButton id wnd[0]/tbar[0]/btn[15]
 		#%endregion
@@ -415,8 +447,15 @@ for <<<Remaining>>> times {
 		Titanium CaptureImage and save as <<<evidenceDir>>>\SAP_Fail_Row<<<Contador>>>_<<<runId>>>.png
 
 		GetCurrentDate format={"MM/dd/yyyy HH:mm:ss" en} and save as NowHuman
-		Excel Append from WSProcessed at [1 ="<<<Contador>>>",2 ="FAIL",3 ="<<<NowHuman>>>",4 ="<<<runId>>>",5 ="<<<ex>>>"]
+		Excel Append from WSProcessed at [1 ="<<<Contador>>>",2 ="FAIL",3 ="<<<NowHuman>>>",4 ="<<<runId>>>",5 ="<<<currentStep>>>: <<<ex>>>"]
 		Excel Save WBName
+
+		## Reset transaction state before next row
+		try
+			SAP SendKey F12
+		catch
+			## Ignore - StartTransaction will reset anyway
+		end
 
 		## Continue-on-error: log failure and proceed to next row
 		#%endregion
