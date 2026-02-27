@@ -1,9 +1,25 @@
 ---
-description: FRIDA/Turing core language rules - syntax, variables, comparisons, sendmail, structure, antipatterns
+description: FRIDA/Turing core language rules - syntax, variables, comparisons, structure, antipatterns, agent workflow
 alwaysApply: true
 ---
 
 # FRIDA Core Language Rules
+
+## Agent Workflow
+
+When writing FRIDA code, follow this scoped retrieval workflow:
+
+1. **Apply rules first**: Always apply this core rule, then only the reader-specific rule(s) matching the request (e.g., `frida-sap.mdc` for SAP tasks).
+2. **Route through docs index**: Start function lookup from `docs/readers-index.md` to identify which reader doc(s) to load.
+3. **Load only target reader docs**: Read only the relevant `docs/<reader>-reader.md` file(s) for syntax and parameters.
+4. **Use syntax cheatsheet sparingly**: Consult `docs/syntax-cheatsheet.md` only for shared syntax (variables, control flow, operators).
+5. **Docs first, readers.json second**: Prefer `docs/` as the primary function reference. Use `readers.json` only when docs are ambiguous, incomplete, or conflicting.
+
+**Responsibilities:**
+- **Rules** (`*.mdc`) = mandates, anti-patterns, ambiguity control
+- **Docs** (`docs/`) = function syntax, parameters, examples
+
+Do not load full `readers.json` or all reader docs for a single-reader task.
 
 ## Syntax & Structure
 
@@ -106,14 +122,7 @@ while ("<<<a>>>" -eq "true" -AND "<<<b>>>" -eq "false") {
 
 ## SendMail
 
-**Grammar:**
-
-```
-SendMail with subject "..." to "..." with body "..."
-SendMail with subject "..." to "..." with body "..." and a file attachment "..."
-```
-
-**Avoid special characters** that may break the lexer - use hyphen `-` instead of en dash `–`.
+**Avoid special characters** in subject/body that may break the lexer - use hyphen `-` instead of en dash `–`. See `docs/mix-reader.md` for full syntax.
 
 ## Antipatterns
 

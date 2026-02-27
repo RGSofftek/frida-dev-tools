@@ -5,6 +5,8 @@ alwaysApply: false
 
 # FRIDA Web/Browpet Reader Rules
 
+**Convention:** All Browpet instructions must use the `Web` prefix (e.g., `Web Click`, `Web Type`, `Web Evaluate`). This is a mandatory team standard.
+
 ## Web Evaluate
 
 `Web Evaluate` writes output to `web2Output` by default. Always copy immediately to a purpose-specific variable:

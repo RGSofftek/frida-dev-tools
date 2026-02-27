@@ -1,5 +1,5 @@
 ---
-description: 
+description: FRIDA SAP reader rules - retry patterns, data validation, continue-on-error policy, systemic vs row-level errors
 alwaysApply: false
 ---
 
