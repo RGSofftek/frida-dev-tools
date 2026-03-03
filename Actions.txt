@@ -94,12 +94,14 @@ AddValueToList "ExpectedHeaders" value "Rules – CO-Purchase (Approval Condit.)
 AddValueToList "ExpectedHeaders" value "Rules – CO-Purchase (Stuffing)"
 AddValueToList "ExpectedHeaders" value "Rules – Contract Form – Fixation"
 
+CountItems in ExpectedHeaders and save_as ExpectedHeaderCount
+
 DefineVariable type "int" as "col" with the value "1"
 DefineVariable type "int" as "idx" with the value "0"
 DefineVariable as "HeadersOk" with the value "true"
 DefineVariable as "HeaderError" with the value ""
 
-for 47 times {
+for <<<ExpectedHeaderCount>>> times {
 	Excel ReadCellText from the worksheet {WSName} from the cell {1,<<<col>>>} and save its value as {actualHeader}
 	DefineVariable as "expectedHeader" with the value "<<<ExpectedHeaders[<<<idx>>>]>>>"
 
@@ -118,11 +120,14 @@ if ("<<<HeadersOk>>>" -ne "true")
 	Excel Save WBName and close
 	Finish
 else
-	Message "TEMPLATE HEADER VALIDATION OK (47 columns)"
+	Message "TEMPLATE HEADER VALIDATION OK (<<<ExpectedHeaderCount>>> columns)"
 end
 
-Excel Write "Status" in WSName row 1 and column 48
-Excel Write "Details" in WSName row 1 and column 49
+MathOperation <<<ExpectedHeaderCount>>> + 1 and save as statusCol
+MathOperation <<<ExpectedHeaderCount>>> + 2 and save as detailsCol
+
+Excel Write "Status" in WSName row 1 and column <<<statusCol>>>
+Excel Write "Details" in WSName row 1 and column <<<detailsCol>>>
 #%endregion
 
 
@@ -187,7 +192,7 @@ foreach rowNum in RowsToProcess {
 	#%region CHECK IF ROW SHOULD BE PROCESSED ───────────────────────────────
 	DefineVariable as "shouldProcessRow" with the value "true"
 	if ("<<<isOverrideMode>>>" -eq "false")
-		Excel ReadCellText from the worksheet {WSName} from the cell {<<<Contador>>>,48} and save its value as {rowStatus}
+		Excel ReadCellText from the worksheet {WSName} from the cell {<<<Contador>>>,<<<statusCol>>>} and save its value as {rowStatus}
 		if ("<<<rowStatus>>>" -eq "Success")
 			DefineVariable as "shouldProcessRow" with the value "false"
 		end
@@ -196,7 +201,7 @@ foreach rowNum in RowsToProcess {
 
 	if ("<<<shouldProcessRow>>>" -eq "true")
 	#%region MARK ROW AS PROCESSING ──────────────────────────────────────────
-	Excel Write "Processing" in WSName row <<<Contador>>> and column 48
+	Excel Write "Processing" in WSName row <<<Contador>>> and column <<<statusCol>>>
 	Excel Save WBName
 	#%endregion
 
@@ -573,7 +578,7 @@ foreach rowNum in RowsToProcess {
 
 
 		#%region MARK SUCCESS IN EXCEL ───────────────────────────────────────────
-		Excel Write "Success" in WSName row <<<Contador>>> and column 48
+		Excel Write "Success" in WSName row <<<Contador>>> and column <<<statusCol>>>
 		successCount++
 
 		## Audit log in Processed sheet
@@ -594,8 +599,8 @@ foreach rowNum in RowsToProcess {
 		## Preserve evidence and mark the row as failed so it can be reviewed or retried intentionally.
 		Titanium CaptureImage and save as <<<evidenceDir>>>\SAP_Fail_Row<<<Contador>>>_<<<runId>>>.png
 
-		Excel Write "Failed" in WSName row <<<Contador>>> and column 48
-		Excel Write "<<<errorDetail>>>" in WSName row <<<Contador>>> and column 49
+		Excel Write "Failed" in WSName row <<<Contador>>> and column <<<statusCol>>>
+		Excel Write "<<<errorDetail>>>" in WSName row <<<Contador>>> and column <<<detailsCol>>>
 		failCount++
 
 		## Audit log in Processed sheet
