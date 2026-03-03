@@ -60,3 +60,9 @@ Prefer standard Web instructions over `Web Evaluate` when possible:
 | Extract text | `Web Extract` | `Web Evaluate` |
 
 Use `Web Evaluate` for complex DOM operations or when standard instructions don't work.
+
+## System Notifications / `systemnotify` in Browpet
+
+- Do **not** use `systemnotify` in any Web/Browpet automation flows.
+- `systemnotify` opens OS/emergent confirmation windows that interfere with browser automation timing and user focus.
+- For status, progress, or error reporting in Browpet scenarios, use alternative mechanisms (logs, Excel markers, email, etc.) instead of `systemnotify`.

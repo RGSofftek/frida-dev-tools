@@ -168,9 +168,16 @@ foreach item in myList {
 
 **Avoid special characters** in subject/body that may break the lexer - use hyphen `-` instead of en dash `–`. See `docs/mix-reader.md` for full syntax.
 
+## System Notifications / `systemnotify`
+
+- `systemnotify` must **only** be used when explicitly requested by the user for the current script or task.
+- `systemnotify` triggers an OS/emergent confirmation window and **must not** be treated as a general-purpose logging or status mechanism.
+- Treat `systemnotify` as an **exceptional, user-driven action**, not a default way to surface information.
+
 ## Antipatterns
 
 - **Never break instructions across lines** (applies to all readers)
 - **Never treat `"true"`/`"false"` as real booleans** - always string compare
 - **No indirect variable dereferencing** (variable name stored in another variable) unless confirmed
 - **Avoid nested quotes in selectors** that cause lexical errors
+- **Do not introduce `systemnotify`** unless the user has explicitly requested its use for this automation

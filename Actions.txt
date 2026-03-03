@@ -23,8 +23,7 @@ DefineVariable type "int" as "failCount" with the value "0"
 ## ─────────────────────────────────────────────────────────────────────────────
 ## CONFIGURABLE PLACEHOLDERS (edit these values as needed)
 ## ─────────────────────────────────────────────────────────────────────────────
-DefineVariable as "excelFile" with the value "C:\Users\rodrigo.gracia\Documents\Projects\ECOM\Inputs\ECOM_MASIVO 9 FEBRERO 2026.xlsx"
-DefineVariable as "notifyEmail" with the value "PLACEHOLDER@email.com"
+DefineVariable as "notifyEmail" with the value "rodrigo.gracia@softtek.com"
 
 ## Evidence folder (optional, for quick debugging / audit)
 DefineVariable as "evidenceDir" with the value "<<<home>>>Documents\Frida_SAP_Evidence"
@@ -37,8 +36,7 @@ end
 
 
 #%region LOAD EXCEL & VALIDATE TEMPLATE HEADERS ──────────────────────────────
-Excel LoadWBook "<<<excelFile>>>" as WBName
-##Excel LoadWBook "<<excelFile>>" as WBName
+Excel LoadWBook "<<excelFile>>" as WBName
 Excel LoadWSheet WBName sheet "Template" as WSName
 Excel LoadWSheet WBName sheet "Processed" as WSProcessed
 
@@ -285,8 +283,8 @@ foreach rowNum in RowsToProcess {
 
 		#%region Entry Screen (type + org) ───────────────────────────────────
 		DefineVariable as "currentStep" with the value "Entry Screen"
-		## Contract Type (robust check: starts with P)
-		if ("<<<contractType>>>" -like "P*")
+		## Contract Type (robust check: starts with P or equals YP01)
+		if (("<<<contractType>>>" -like "P*") -OR ("<<<contractType>>>" -eq "YP01"))
 			SAP SelectComboBox id wnd[0]/usr/cmbP_LSCTP1 P
 		else
 			SAP SelectComboBox id wnd[0]/usr/cmbP_LSCTP1 S
@@ -633,5 +631,4 @@ else
 end
 
 Excel Save WBName and close
-SystemNotify Type "Notification" with message "SAP bot finished run: <<<runId>>>"
 #%endregion
