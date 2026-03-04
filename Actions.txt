@@ -449,29 +449,36 @@ foreach rowNum in RowsToProcess {
 
 			#%region Texts ───────────────────────────────────────────────────────
 			DefineVariable as "currentStep" with the value "Texts"
+		DefineVariable as "hasText" with the value "false"
 		DefineVariable type "List" as "textEntries"
 		if ("<<<textGeneralRemarks>>>" -ne "")
+			DefineVariable as "hasText" with the value "true"
 			AddValueToList "textEntries" value "0001,<<<textGeneralRemarks>>>"
 		end
 		if ("<<<textProducerFloId>>>" -ne "")
+			DefineVariable as "hasText" with the value "true"
 			AddValueToList "textEntries" value "Z043,<<<textProducerFloId>>>"
 		end
 		if ("<<<textPrice>>>" -ne "")
+			DefineVariable as "hasText" with the value "true"
 			AddValueToList "textEntries" value "Z009,<<<textPrice>>>"
 		end
 		if ("<<<textAdditionalCondition>>>" -ne "")
+			DefineVariable as "hasText" with the value "true"
 			AddValueToList "textEntries" value "Z048,<<<textAdditionalCondition>>>"
 		end
-		CountItems in textEntries and save_as textCount
-		if ("<<<textCount>>>" -gt "0")
-				SAP SelectTab id "wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT"
-			foreach textItem in textEntries {
-				ApplyRegex ".+?(?=,)" to the string "<<<textItem>>>" and save as "txtNode"
-				ApplyRegex "(?<=,).*$" to the string "<<<textItem>>>" and save as "txtVal"
-					SAP SelectTreeItem TreeId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[0]/shell Node "<<<txtNode>>>" Item "Column1"
-					SAP DoubleClickTreeItem TreeId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[0]/shell Node "<<<txtNode>>>" Item "Column1"
-					SAP WriteText ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[1]/shell Text "<<<txtVal>>>"
-			}
+		if ("<<<hasText>>>" -eq "true")
+			CountItems in textEntries and save_as textCount
+			if ("<<<textCount>>>" -gt "0")
+					SAP SelectTab id "wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT"
+				foreach textItem in textEntries {
+					ApplyRegex ".+?(?=,)" to the string "<<<textItem>>>" and save as "txtNode"
+					ApplyRegex "(?<=,).*$" to the string "<<<textItem>>>" and save as "txtVal"
+						SAP SelectTreeItem TreeId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[0]/shell Node "<<<txtNode>>>" Item "Column1"
+						SAP DoubleClickTreeItem TreeId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[0]/shell Node "<<<txtNode>>>" Item "Column1"
+						SAP WriteText ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[1]/shell Text "<<<txtVal>>>"
+				}
+			end
 		end
 		#%endregion
 

@@ -215,6 +215,12 @@ foreach item in checks {
 
 Use cases: mandatory-field validation, "has any rule" detection, and similar multi-field checks. Adding a new field is one `AddValueToList` line.
 
+## CountItems preconditions
+
+- `CountItems` throws `Variable is null` when the target variable is null (per `docs/mix-reader.md`: "If variable is null it will return an error").
+- Before calling `CountItems in <varName> and save_as <varName2>`, always guarantee that `<varName>` has been **defined and populated**, not just declared.
+- For list accumulators that may legitimately end up empty (e.g. optional texts, dynamic filters), guard `CountItems` with a separate boolean flag (e.g. `hasItems`) or with a prior check that at least one contributing input is non-empty, and **skip the `CountItems` call entirely** if the flag is false.
+
 ## SendMail
 
 **Avoid special characters** in subject/body that may break the lexer - use hyphen `-` instead of en dash `–`. See `docs/mix-reader.md` for full syntax.
