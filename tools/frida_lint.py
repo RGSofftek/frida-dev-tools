@@ -228,7 +228,9 @@ RE_GETHOME_AS = re.compile(r'GetHome\s+as\s+"([^"]+)"', re.IGNORECASE)
 RE_GETCURRENTDATE_SAVE = re.compile(r'GetCurrentDate\s+.*?\s+and\s+save\s+as\s+([A-Za-z_][A-Za-z0-9_]*)', re.IGNORECASE)
 RE_FOREACH_VAR = re.compile(r"^\s*foreach\s+(\w+)\s+in\s+", re.IGNORECASE)
 RE_RUNTIME_VAR = re.compile(r"<<<([^>]+)>>>")
-RE_GLOBAL_VAR = re.compile(r"<<([^>]+)>>")
+# Match only true globals of the form <<name>>, not the inner part of <<<name>>>.
+# Use lookbehind/lookahead to ensure exactly two angle brackets.
+RE_GLOBAL_VAR = re.compile(r"(?<!<)<<([^<>]+)>>(?!>)")
 RE_BRACE_VAR = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 RE_GLOBAL_DOC = re.compile(r"^\s*##\s*<<([^>]+)>>")
 RE_RUNSCRIPT = re.compile(r"^\s*RunScript\s+(\S+)", re.IGNORECASE)
@@ -743,22 +745,33 @@ def rule_w007_excel_not_closed(records: list[LineRecord], ctx: ParseContext) -> 
 
 def rule_w008_sendmail_chars(records: list[LineRecord], ctx: ParseContext) -> list[Diagnostic]:
     out: list[Diagnostic] = []
-    bad = "–—''"""
+    # Map problematic punctuation to ASCII-safe equivalents.
+    translation = {
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2015": "-",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201C": '"',
+        "\u201D": '"',
+    }
     for r in records:
         if "SendMail" not in r.stripped and "sendmail" not in r.stripped.lower():
             continue
-        for c in bad:
-            if c in r.stripped:
-                if "W008" in r.noqa_codes or "ALL" in r.noqa_codes:
-                    continue
-                new_line = r.stripped.replace("–", "-").replace("—", "-").replace("'", "'").replace("'", "'").replace(""", '"').replace(""", '"')
-                out.append(Diagnostic(
-                    file="", line=r.line_no, col=1, code="W008",
-                    message="Special characters in SendMail (use hyphen and straight quotes)",
-                    severity="warning", fixable=True, fix_kind="safe",
-                    fix_replacement=[new_line],
-                ))
-                break
+        original = r.stripped
+        fixed = "".join(translation.get(ch, ch) for ch in original)
+        if fixed != original:
+            if "W008" in r.noqa_codes or "ALL" in r.noqa_codes:
+                continue
+            out.append(Diagnostic(
+                file="", line=r.line_no, col=1, code="W008",
+                message="Special characters in SendMail (use hyphen and straight quotes)",
+                severity="warning", fixable=True, fix_kind="safe",
+                fix_replacement=[fixed],
+            ))
     return out
 
 
@@ -891,18 +904,21 @@ def rule_w016_date_type_misuse(records: list[LineRecord], ctx: ParseContext) -> 
 def rule_w017_duplicate_define(records: list[LineRecord], ctx: ParseContext) -> list[Diagnostic]:
     out: list[Diagnostic] = []
     seen: dict[str, int] = {}
+    reported: set[str] = set()
     for r in records:
         m = RE_DEFINE_VAR.search(r.stripped)
-        if m:
-            name = m.group(1)
-            if name in seen:
-                if "W017" not in r.noqa_codes and "ALL" not in r.noqa_codes:
-                    out.append(Diagnostic(
-                        file="", line=r.line_no, col=1, code="W017",
-                        message=f"Duplicate DefineVariable for '{name}' (previous at line {seen[name]})",
-                        severity="warning",
-                    ))
-            seen[name] = r.line_no
+        if not m:
+            continue
+        name = m.group(1)
+        if name in seen and name not in reported:
+            if "W017" not in r.noqa_codes and "ALL" not in r.noqa_codes:
+                out.append(Diagnostic(
+                    file="", line=r.line_no, col=1, code="W017",
+                    message=f"Duplicate DefineVariable for '{name}' (previous at line {seen[name]})",
+                    severity="warning",
+                ))
+                reported.add(name)
+        seen[name] = r.line_no
     return out
 
 
@@ -1005,7 +1021,16 @@ def rule_s003_trailing_whitespace(records: list[LineRecord], ctx: ParseContext) 
 
 
 def rule_c001_missing_globals_doc(records: list[LineRecord], ctx: ParseContext) -> list[Diagnostic]:
+    # If there are no globals, or all used globals are already documented, or a header
+    # block already exists, do not generate a new header.
     if not ctx.globals_used or ctx.globals_documented >= ctx.globals_used:
+        return []
+    header_present = False
+    for r in records:
+        if r.line_type == LineType.comment and "GLOBAL VARIABLES" in r.stripped.upper():
+            header_present = True
+            break
+    if header_present:
         return []
     block = [
         "## ─────────────────────────────────────────────────────────────────────────────",
@@ -1142,9 +1167,9 @@ def format_file(records: list[LineRecord], config: Config) -> list[str]:
             prev_blank = True
             continue
         prev_blank = False
+        # Indentation is derived purely from control-flow depth; regions do not
+        # change depth but should respect the current scope's indentation.
         line_indent = indent_str * r.depth
-        if r.line_type in (LineType.region_open, LineType.region_close):
-            line_indent = ""
         out.append(line_indent + stripped)
     result = "\n".join(out)
     if result and not result.endswith("\n"):
@@ -1161,43 +1186,78 @@ UNSAFE_FIX_CODES = {"E001", "E003", "W004", "W018", "C007"}
 
 
 def apply_fixes(lines: list[str], records: list[LineRecord], diagnostics: list[Diagnostic], config: Config, safe_only: bool) -> list[str]:
-    fixed_lines = list(lines)
-    num_inserted_top = 0
-    inserts_done = 0
-    # First pass: C001 (insert block at top)
+    """
+    Apply fixes in a deterministic, bottom-up way without index drift.
+
+    Strategy:
+    - Compute patch operations against the original line numbers.
+    - Sort operations by (line, op_type) descending and apply to a working copy.
+    """
+    # Normalize lines to always end with a newline to simplify replacements.
+    fixed_lines = [ln if ln.endswith("\n") else ln + "\n" for ln in lines]
+
+    # Collect patch operations.
+    ops: list[tuple[int, str, list[str], str]] = []  # (line_index, op_type, payload_lines, code)
+
     for d in diagnostics:
-        if d.code != "C001" or not d.fixable or not d.fix_replacement:
+        if not d.fixable or not d.fix_replacement:
+            continue
+        if safe_only and d.fix_kind == "unsafe":
             continue
         if not config.fix_enabled(d.code):
             continue
-        block = d.fix_replacement
-        fixed_lines = [b + "\n" for b in block] + fixed_lines
-        num_inserted_top = len(block)
-        break
-    # Second pass: all other fixes, from bottom to top so indices stay valid
-    fixable_diags = [d for d in diagnostics if d.fixable and d.fix_replacement and d.code != "C001"
-                     and (not safe_only or d.fix_kind == "safe") and config.fix_enabled(d.code)]
-    fixable_diags.sort(key=lambda d: d.line, reverse=True)
-    for d in fixable_diags:
-        idx = d.line - 1 + num_inserted_top + inserts_done
-        if d.code == "E006" and d.fix_replacement:
+        line_idx = max(0, d.line - 1)  # 0-based index
+
+        # C001: insert header block before first non-header instruction.
+        if d.code == "C001":
+            payload = [ln.rstrip("\n") + "\n" for ln in d.fix_replacement]
+            ops.append((0, "insert_block_top", payload, d.code))
+            continue
+
+        # E006: might expand into two lines.
+        if d.code == "E006":
             rep = d.fix_replacement[0]
             if "\n" in rep:
                 a, b = rep.split("\n", 1)
-                fixed_lines[idx] = a + "\n"
-                fixed_lines.insert(idx + 1, b + "\n")
-                inserts_done += 1
+                payload = [a + "\n", b + "\n"]
+                ops.append((line_idx, "replace_two", payload, d.code))
             else:
-                fixed_lines[idx] = rep.rstrip() + ("\n" if not rep.endswith("\n") else "")
+                payload = [rep.rstrip("\n") + "\n"]
+                ops.append((line_idx, "replace_one", payload, d.code))
             continue
-        if d.code == "C004" and d.fix_replacement:
-            fixed_lines.insert(idx, d.fix_replacement[0].rstrip() + "\n")
-            inserts_done += 1
+
+        # C004: insert checkpoint comment immediately before StartTransaction line.
+        if d.code == "C004":
+            payload = [d.fix_replacement[0].rstrip("\n") + "\n"]
+            ops.append((line_idx, "insert_before", payload, d.code))
             continue
+
+        # Default: single-line replacement.
         if len(d.fix_replacement) == 1:
-            fixed_lines[idx] = d.fix_replacement[0].rstrip()
-            if not fixed_lines[idx].endswith("\n"):
-                fixed_lines[idx] += "\n"
+            payload = [d.fix_replacement[0].rstrip("\n") + "\n"]
+            ops.append((line_idx, "replace_one", payload, d.code))
+
+    if not ops:
+        return fixed_lines
+
+    # Sort operations bottom-up so earlier indices are unaffected by later inserts.
+    order = {"insert_block_top": 0, "insert_before": 1, "replace_two": 2, "replace_one": 3}
+    ops.sort(key=lambda t: (t[0], order.get(t[1], 99)), reverse=True)
+
+    for line_idx, op_type, payload, code in ops:
+        if op_type == "insert_block_top":
+            fixed_lines = payload + fixed_lines
+            continue
+        if line_idx < 0 or line_idx >= len(fixed_lines):
+            continue
+        if op_type == "insert_before":
+            fixed_lines[line_idx:line_idx] = payload
+        elif op_type == "replace_two":
+            # Replace the target line and insert the second immediately after.
+            fixed_lines[line_idx:line_idx + 1] = payload
+        elif op_type == "replace_one":
+            fixed_lines[line_idx:line_idx + 1] = payload
+
     return fixed_lines
 
 
