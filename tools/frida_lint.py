@@ -206,7 +206,7 @@ BLOCK_OPENERS = {
 RE_BLANK = re.compile(r"^\s*$")
 RE_REGION_OPEN = re.compile(r"^\s*#%region\s", re.IGNORECASE)
 RE_REGION_CLOSE = re.compile(r"^\s*#%endregion\s*$", re.IGNORECASE)
-RE_COMMENT = re.compile(r"^\s*(##|#\*|#\?|#!)(\S|$)", re.IGNORECASE)
+RE_COMMENT = re.compile(r"^\s*(##|#\*|#\?|#!)", re.IGNORECASE)
 RE_END = re.compile(r"^\s*end\s*$", re.IGNORECASE)
 RE_CLOSE_BRACE = re.compile(r"^\s*\}\s*$")
 RE_IF = re.compile(r"^\s*if\s*\(")
@@ -311,14 +311,12 @@ def parse_file(lines: list[str], path: Path) -> tuple[list[LineRecord], ParseCon
         line_type, block_kw = classify_line(stripped)
         noqa_inline = parse_noqa_inline(stripped)
 
-        if line_type == LineType.region_open:
-            noqa_codes = parse_noqa_begin(stripped)
-            if noqa_codes:
-                noqa_block_stack.append(noqa_codes)
-        elif line_type == LineType.region_close:
-            noqa_codes = parse_noqa_end(stripped)
-            if noqa_codes and noqa_block_stack:
-                noqa_block_stack.pop()
+        noqa_begin = parse_noqa_begin(stripped)
+        if noqa_begin:
+            noqa_block_stack.append(noqa_begin)
+        noqa_end = parse_noqa_end(stripped)
+        if noqa_end and noqa_block_stack:
+            noqa_block_stack.pop()
 
         noqa_codes = noqa_inline or (noqa_block_stack[-1] if noqa_block_stack else set())
 
@@ -517,6 +515,9 @@ def rule_e004_wrong_closer(records: list[LineRecord], ctx: ParseContext) -> list
     stack: list[tuple[str, int, str]] = []
     for r in records:
         if r.line_type == LineType.block_open and r.block_keyword in BLOCK_OPENERS:
+            if r.block_keyword in ("else", "catch", "case", "default"):
+                if stack and stack[-1][2] == "end":
+                    stack.pop()
             stack.append((r.block_keyword, r.line_no, BLOCK_OPENERS[r.block_keyword]))
         elif r.line_type == LineType.block_close:
             if r.block_keyword == "end":
@@ -547,6 +548,9 @@ def rule_e005_unbalanced(records: list[LineRecord], ctx: ParseContext) -> list[D
     stack: list[tuple[str, int, str]] = []
     for r in records:
         if r.line_type == LineType.block_open and r.block_keyword in BLOCK_OPENERS:
+            if r.block_keyword in ("else", "catch", "case", "default"):
+                if stack and stack[-1][2] == "end":
+                    stack.pop()
             stack.append((r.block_keyword, r.line_no, BLOCK_OPENERS[r.block_keyword]))
         elif r.line_type == LineType.block_close:
             if stack:
@@ -973,19 +977,37 @@ def rule_c008_region_dash_inconsistent(records: list[LineRecord], ctx: ParseCont
 
 def rule_s001_indentation(records: list[LineRecord], ctx: ParseContext, indent_str: str) -> list[Diagnostic]:
     out: list[Diagnostic] = []
+
+    def leading_indent_level(raw: str) -> int:
+        if indent_str == "	":
+            return len(raw) - len(raw.lstrip("	"))
+        level = 0
+        i = 0
+        step = len(indent_str)
+        while raw[i:i + step] == indent_str:
+            level += 1
+            i += step
+        return level
+
     for r in records:
-        if r.line_type == LineType.blank:
+        if r.line_type in (LineType.blank, LineType.comment, LineType.region_open, LineType.region_close):
             continue
         leading = r.raw[: len(r.raw) - len(r.raw.lstrip())]
-        expected = indent_str * r.depth
-        if leading != expected and r.stripped:
-            if "S001" not in r.noqa_codes and "ALL" not in r.noqa_codes:
-                out.append(Diagnostic(
-                    file="", line=r.line_no, col=1, code="S001",
-                    message=f"Expected indent level {r.depth}, found different",
-                    severity="style", fixable=True, fix_kind="safe",
-                    fix_replacement=[expected + r.stripped],
-                ))
+        actual_level = leading_indent_level(leading)
+        expected_level = r.depth
+
+        if actual_level == expected_level:
+            continue
+
+        if not r.stripped or "S001" in r.noqa_codes or "ALL" in r.noqa_codes:
+            continue
+
+        out.append(Diagnostic(
+            file="", line=r.line_no, col=1, code="S001",
+            message=f"Expected indent level {expected_level}, found {actual_level}",
+            severity="style", fixable=True, fix_kind="safe",
+            fix_replacement=[(indent_str * expected_level) + r.stripped.lstrip()],
+        ))
     return out
 
 
@@ -994,8 +1016,8 @@ def rule_s002_comment_space(records: list[LineRecord], ctx: ParseContext) -> lis
     for r in records:
         if not r.stripped.startswith("##") or r.stripped.startswith("#%") or r.stripped.startswith("#*") or r.stripped.startswith("#?") or r.stripped.startswith("#!"):
             continue
-        if re.match(r"^##\S", r.stripped):
-            fixed = re.sub(r"^(##)(\S)", r"\1 \2", r.stripped, count=1)
+        if re.match(r"^##[A-Za-z0-9<]", r.stripped):
+            fixed = re.sub(r"^(##)([A-Za-z0-9<])", r"\1 \2", r.stripped, count=1)
             if "S002" not in r.noqa_codes and "ALL" not in r.noqa_codes:
                 out.append(Diagnostic(
                     file="", line=r.line_no, col=1, code="S002",
@@ -1153,7 +1175,7 @@ def run_lint(records: list[LineRecord], ctx: ParseContext, config: Config, file_
 # -----------------------------------------------------------------------------
 
 
-def format_file(records: list[LineRecord], config: Config) -> list[str]:
+def format_file(records: list[LineRecord], config: Config, preserve_tab_depth: bool = False) -> list[str]:
     indent_char = "\t" if config.indent == "tab" else " "
     indent_size = 1 if config.indent == "tab" else config.indent_size
     indent_str = indent_char * indent_size
@@ -1161,16 +1183,20 @@ def format_file(records: list[LineRecord], config: Config) -> list[str]:
     prev_blank = False
     for r in records:
         stripped = r.stripped
+        content = stripped.lstrip()
         if r.line_type == LineType.blank:
             if not prev_blank:
                 out.append("")
             prev_blank = True
             continue
         prev_blank = False
-        # Indentation is derived purely from control-flow depth; regions do not
-        # change depth but should respect the current scope's indentation.
-        line_indent = indent_str * r.depth
-        out.append(line_indent + stripped)
+        if preserve_tab_depth:
+            existing_indent = r.stripped[: len(r.stripped) - len(r.stripped.lstrip())]
+            out.append(existing_indent + content)
+        else:
+            # Canonical indentation is derived from control-flow depth.
+            line_indent = indent_str * r.depth
+            out.append(line_indent + content)
     result = "\n".join(out)
     if result and not result.endswith("\n"):
         result += "\n"
@@ -1193,9 +1219,6 @@ def apply_fixes(lines: list[str], records: list[LineRecord], diagnostics: list[D
     - Compute patch operations against the original line numbers.
     - Sort operations by (line, op_type) descending and apply to a working copy.
     """
-    # Normalize lines to always end with a newline to simplify replacements.
-    fixed_lines = [ln if ln.endswith("\n") else ln + "\n" for ln in lines]
-
     # Collect patch operations.
     ops: list[tuple[int, str, list[str], str]] = []  # (line_index, op_type, payload_lines, code)
 
@@ -1238,7 +1261,10 @@ def apply_fixes(lines: list[str], records: list[LineRecord], diagnostics: list[D
             ops.append((line_idx, "replace_one", payload, d.code))
 
     if not ops:
-        return fixed_lines
+        return lines
+
+    # Normalize lines to always end with a newline to simplify replacements.
+    fixed_lines = [ln if ln.endswith("\n") else ln + "\n" for ln in lines]
 
     # Sort operations bottom-up so earlier indices are unaffected by later inserts.
     order = {"insert_block_top": 0, "insert_before": 1, "replace_two": 2, "replace_one": 3}
@@ -1336,11 +1362,13 @@ def main() -> int:
     check_parser.add_argument("--json", action="store_true", help="JSON output")
     check_parser.add_argument("--select", type=str, default="", help="Comma-separated rules to enable")
     check_parser.add_argument("--ignore", type=str, default="", help="Comma-separated rules to ignore")
+    check_parser.add_argument("--safe-tabs", action="store_true", help="Preserve existing tab depth and disable S001 fixes/reports")
 
     format_parser = sub.add_parser("format", help="Format files")
     format_parser.add_argument("files", nargs="+", help="Files or globs")
     format_parser.add_argument("--diff", action="store_true", help="Show diff only")
     format_parser.add_argument("--check", action="store_true", help="Exit 1 if would reformat")
+    format_parser.add_argument("--safe-tabs", action="store_true", help="Preserve existing tab depth (avoid parser-depth reindent)")
 
     args = parser.parse_args()
     config = Config.load(args.config)
@@ -1365,6 +1393,8 @@ def main() -> int:
                 lines = [""]
             records, ctx = parse_file([line.rstrip("\r\n") for line in lines], path)
             diags = run_lint(records, ctx, config, path, indent_str)
+            if getattr(args, "safe_tabs", False):
+                diags = [d for d in diags if d.code != "S001"]
             all_diagnostics.extend(diags)
             if (args.fix or args.unsafe_fixes) and diags:
                 safe_only = not args.unsafe_fixes
@@ -1392,7 +1422,7 @@ def main() -> int:
             if not lines:
                 lines = [""]
             records, _ = parse_file([line.rstrip("\r\n") for line in lines], path)
-            formatted = format_file(records, config)
+            formatted = format_file(records, config, preserve_tab_depth=getattr(args, "safe_tabs", False))
             new_text = "".join(formatted) if formatted else ""
             orig_text = "".join(lines)
             if new_text != orig_text:
