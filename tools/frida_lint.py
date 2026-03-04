@@ -903,6 +903,8 @@ def rule_w011_readcell_without_check(records: list[LineRecord], ctx: ParseContex
 def rule_w012_sendkey_without_status(records: list[LineRecord], ctx: ParseContext) -> list[Diagnostic]:
     out: list[Diagnostic] = []
     for i, r in enumerate(records):
+        if r.line_type != LineType.instruction:
+            continue
         if "SAP SendKey 0" not in r.stripped and "SendKey 0" not in r.stripped:
             continue
         has_status = False

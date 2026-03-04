@@ -647,7 +647,7 @@ foreach rowNum in RowsToProcess {
 				else
 					DefineVariable as "rowOutcome" with the value "success"
 				end
-
+				#%endregion
 			catch as ex
 				#%region FAILURE HANDLING ────────────────────────────────────────────
 				DefineVariable as "rowOutcome" with the value "exception_fail"
