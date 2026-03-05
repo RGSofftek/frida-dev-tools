@@ -44,6 +44,19 @@ If a known pattern matches, use the confirmed root cause and resolution instead 
 - **Actual root cause**: Excel workbook could not be opened (file path wrong, file missing, file locked, or corrupted).
 - **Resolution**: Verify the `excelFile` path, ensure the file exists and is accessible, and check that no other process is locking or corrupting the workbook before running the FRIDA process.
 
+### WriteText BID-BASE_PRICE_VAL: invalid argument (cascade after Cover Month invalid)
+- **First seen**: 2026-03-04
+- **Log excerpt**:
+  ```text
+  lastSAPError with the value "SAP(E) [ZACM000]: Cover Month KCK6 is invalid"
+  ...
+  SAP WriteText ElementId .../txt<SG>-BID-BASE_PRICE_VAL Text "1000" : Running
+  error: WriteText ... : COMException (0x00000265): The method got an invalid argument.
+  SAP WriteText ... : (Line: 433) : Error
+  ```
+- **Actual root cause**: SAP had already rejected Cover Month (e.g. "KCK6 is invalid"). The script continued to Price Details (BID) and tried to write to BID-BASE_PRICE_VAL; the control is not in a valid state when the screen has that validation error, so WriteText throws invalid argument. The failure is a **cascade** of the Cover Month error.
+- **Resolution**: Fix the Cover Month value in Excel/source data so SAP accepts it (valid domain/format for the contract type). Optionally, after CheckSAPStatus following header price SendKey 0, if lastSAPError is non-empty, skip the BID WriteText block and go to failure handling so the log shows only the SAP message.
+
 ### Stale "Fill required fields" when GetStatusInfo throws (control not found)
 - **First seen**: 2026-03-03
 - **Log excerpt**:
