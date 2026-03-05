@@ -54,8 +54,8 @@ If a known pattern matches, use the confirmed root cause and resolution instead 
   error: WriteText ... : COMException (0x00000265): The method got an invalid argument.
   SAP WriteText ... : (Line: 433) : Error
   ```
-- **Actual root cause**: SAP had already rejected Cover Month (e.g. "KCK6 is invalid"). The script continued to Price Details (BID) and tried to write to BID-BASE_PRICE_VAL; the control is not in a valid state when the screen has that validation error, so WriteText throws invalid argument. The failure is a **cascade** of the Cover Month error.
-- **Resolution**: Fix the Cover Month value in Excel/source data so SAP accepts it (valid domain/format for the contract type). Optionally, after CheckSAPStatus following header price SendKey 0, if lastSAPError is non-empty, skip the BID WriteText block and go to failure handling so the log shows only the SAP message.
+- **Actual root cause**: SAP had already rejected Cover Month. **SAP reporting discrepancy**: SAP often reports the **default** value (e.g. KCK6) in the error message, not the value that was actually written from Excel (e.g. KCH6). The **actual invalid value** is the one from Excel/source; use variable lifecycle tracing (last WriteText to COVER_MONTH_VAL, then "Value :" from Excel read) to confirm. The BID WriteText failure is a **cascade** — the script continued to Price Detail (BID) and tried to write to BID-BASE_PRICE_VAL while the screen had that validation error, so WriteText threw invalid argument.
+- **Resolution**: Fix the Cover Month value in Excel/source data so SAP accepts it (valid domain/format for the contract type). The script now validates Cover Month **before** the Characteristics loop (region "Price Detail (Cover Month)" after Basic Data). If CheckSAPStatus sets lastSAPError (e.g. Cover Month invalid), the script enriches the message with the Excel value and skips Characteristics, Price Detail, Texts, Rules, and Finalize — so the log shows the enriched Cover Month error and no BID cascade.
 
 ### Stale "Fill required fields" when GetStatusInfo throws (control not found)
 - **First seen**: 2026-03-03

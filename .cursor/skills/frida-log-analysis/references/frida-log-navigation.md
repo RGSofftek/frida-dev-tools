@@ -69,6 +69,24 @@ For each error found, classify it before deciding how deep to investigate:
   - Look for loops that exhausted all items without a match (e.g. many `If Result : False` with no `break`).
 - Always report all errors found, clearly distinguishing **root causes** from **downstream consequences**.
 
+### Variable lifecycle tracing
+
+When an error is caused by the **input of a variable** (value sent to SAP, written to Excel, or used in a condition), trace that variable’s **definition and lifecycle** in the log to see where the value went wrong:
+
+- **Definition**: Where the variable was set (e.g. `Excel ReadCell` / `ReadCellText` → "Var Name" / "Value", or `DefineVariable` → "Value").
+- **Transforms**: Any changes along the way (e.g. `ReplaceFromVariable`, `ApplyRegex`, list indexing).
+- **Consumption**: Where the value was used (e.g. `WriteText` with `Text "..."`, `Excel Write`, or the failing instruction).
+
+Check each step to decide whether the problem is at definition (bad source data), in a transform (wrong logic), or at consumption (e.g. wrong target or a system reporting quirk). This works even without the script: search the log for the variable name in "Var Name" / "Value" and in the failing instruction’s parameters.
+
+**SAP field value vs. reported value**
+
+When an SAP error message mentions a field value (code, month, amount):
+
+1. Find the most recent `WriteText` to the same element ID in the log and extract the `Text "..."` value (consumption).
+2. Compare that written value with what SAP reports in the error. If they differ, flag a **SAP-reporting discrepancy** (e.g. SAP reports default instead of the value actually sent).
+3. Trace back to the variable’s definition (e.g. "Value :" after Excel read or DefineVariable) to confirm the source value and complete the lifecycle.
+
 ### Adding new patterns
 
 When you discover a new **structural** pattern in logs (not just a single project-specific bug), add it here to improve future navigation:

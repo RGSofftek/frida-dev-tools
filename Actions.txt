@@ -8,10 +8,10 @@
 ## SAP NAVIGATION MAP (ZWB21 - Deal Contract Creation)
 ## ──────────────────────────────────────────────────────────────────────
 ## Screen flow:
-##   Entry Screen (type + org) -> btn[8] Execute
-##   -> Header Details (basic + dates/terms) -> SendKey 0 validates
+##   Header (type + org) -> btn[8] Execute
+##   -> Basic Data (basic + dates/terms) -> SendKey 0 validates
 ##   -> btn[7] opens Characteristics sub-screen -> btn[3] returns
-##   -> Price Details (header + BID) -> btn[8] next section
+##   -> Price Detail (header + BID) -> btn[8] next section
 ##     -> btnBUTTON_1 confirmation dialog
 ##   -> Texts tab (tree: 0001=General, Z043=FLO ID, Z009=Price, Z048=AddCond)
 ##   -> Rules tab (AOHD) combo boxes + radio buttons
@@ -330,8 +330,8 @@ foreach rowNum in RowsToProcess {
 				## Start transaction zwb21
 				SAP StartTransaction zwb21
 
-				#%region Entry Screen (type + org) ───────────────────────────────────
-				DefineVariable as "currentStep" with the value "Entry Screen"
+				#%region Header ───────────────────────────────────────────────────────
+				DefineVariable as "currentStep" with the value "Header"
 				## Contract Type
 				if (("<<<contractType>>>" -like "P*") -OR ("<<<contractType>>>" -eq "YP01"))
 					SAP SelectComboBox id wnd[0]/usr/cmbP_LSCTP1 P
@@ -347,8 +347,8 @@ foreach rowNum in RowsToProcess {
 				RunScript CheckSAPStatus
 				#%endregion
 
-				#%region Header Details ──────────────────────────────────────────────
-				DefineVariable as "currentStep" with the value "Header Details (Basic)"
+				#%region Basic Data ──────────────────────────────────────────────────
+				DefineVariable as "currentStep" with the value "Basic Data"
 				if ("<<<priceType>>>" -eq "FLAT")
 					SAP SelectComboBox id wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/cmbSG_HEADER_DETAILS-LSPRG 1
 				else
@@ -363,7 +363,6 @@ foreach rowNum in RowsToProcess {
 				SAP SendKey 0
 				RunScript CheckSAPStatus
 
-				DefineVariable as "currentStep" with the value "Header Details (Dates/Terms)"
 				SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-DATE_FROM Text "<<<deliveryPeriodFrom>>>"
 				SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-DATE_TO Text "<<<deliveryPeriodTo>>>"
 				SAP WriteText ElementId wnd[0]/usr/subSUBSCREEN:ZACMRE_DEAL_CONTRACT:2200/ctxtSG_HEADER_DETAILS-TERM Text "<<<paymentTerms>>>"
@@ -376,216 +375,224 @@ foreach rowNum in RowsToProcess {
 				RunScript CheckSAPStatus
 				#%endregion
 
-				#%region Characteristics ─────────────────────────────────────────────
-				DefineVariable as "currentStep" with the value "Characteristics"
-				## Apply provided characteristics to SAP table where names match.
-				SAP ClickButton id wnd[0]/tbar[1]/btn[7]
-
-				DefineVariable type "int" as "page" with the value "0"
-				for 2 times {
-					if (<<<page>>> -gt 0)
-						## Pos 12 = scroll to second page of characteristics
-						SAP VerticalScroll GridId wnd[0]/usr/subCHARACTERISTICS:SAPLCEI0:1400/tblSAPLCEI0CHARACTER_VALUES Pos 12
+				#%region Price Detail (Cover Month) ─────────────────────────────────
+				DefineVariable as "currentStep" with the value "Price Detail (Cover Month)"
+				SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/ctxtSG_HEADER_PRICE_SC-COVER_MONTH_VAL Text "<<<coverMonth>>>"
+				SAP SendKey 0
+				RunScript CheckSAPStatus
+				if ("<<<lastSAPError>>>" -ne "")
+					if ("<<<lastSAPError>>>" -like "*Cover Month*")
+						DefineVariable as "lastSAPError" with the value "<<<lastSAPError>>> (Cover Month <<<coverMonth>>> is invalid)"
 					end
-					DefineVariable as "counter" with the value "0"
-					## 11 = visible rows per page in the characteristics table
-					for 11 times {
-						try
-							SAP ReadElement wnd[0]/usr/subCHARACTERISTICS:SAPLCEI0:1400/tblSAPLCEI0CHARACTER_VALUES/ctxtRCTMS-MNAME[0,<<<counter>>>] as key
-						catch
-							break
+				end
+				#%endregion
+
+				if ("<<<lastSAPError>>>" -eq "")
+					#%region Characteristics ─────────────────────────────────────────────
+					DefineVariable as "currentStep" with the value "Characteristics"
+					## Apply provided characteristics to SAP table where names match.
+					SAP ClickButton id wnd[0]/tbar[1]/btn[7]
+
+					DefineVariable type "int" as "page" with the value "0"
+					for 2 times {
+						if (<<<page>>> -gt 0)
+							## Pos 12 = scroll to second page of characteristics
+							SAP VerticalScroll GridId wnd[0]/usr/subCHARACTERISTICS:SAPLCEI0:1400/tblSAPLCEI0CHARACTER_VALUES Pos 12
 						end
-						## Stop if table row is empty
-						if ("<<<key>>>" -eq "")
-							break
-						end
-						foreach item in characteristics {
-							ApplyRegex ".+?(?=,)" to the string "<<<item>>>" and save as "charName"
-							if ("<<<key>>>" -eq "<<<charName>>>")
-								ApplyRegex "(?<=,).*$" to the string "<<<item>>>" and save as "charValue"
-								SAP WriteText ElementId wnd[0]/usr/subCHARACTERISTICS:SAPLCEI0:1400/tblSAPLCEI0CHARACTER_VALUES/ctxtRCTMS-MWERT[1,<<<counter>>>] Text "<<<charValue>>>"
+						DefineVariable as "counter" with the value "0"
+						## 11 = visible rows per page in the characteristics table
+						for 11 times {
+							try
+								SAP ReadElement wnd[0]/usr/subCHARACTERISTICS:SAPLCEI0:1400/tblSAPLCEI0CHARACTER_VALUES/ctxtRCTMS-MNAME[0,<<<counter>>>] as key
+							catch
 								break
 							end
+							## Stop if table row is empty
+							if ("<<<key>>>" -eq "")
+								break
+							end
+							foreach item in characteristics {
+								ApplyRegex ".+?(?=,)" to the string "<<<item>>>" and save as "charName"
+								if ("<<<key>>>" -eq "<<<charName>>>")
+									ApplyRegex "(?<=,).*$" to the string "<<<item>>>" and save as "charValue"
+									SAP WriteText ElementId wnd[0]/usr/subCHARACTERISTICS:SAPLCEI0:1400/tblSAPLCEI0CHARACTER_VALUES/ctxtRCTMS-MWERT[1,<<<counter>>>] Text "<<<charValue>>>"
+									break
+								end
+							}
+							MathOperation <<<counter>>> + 1 and save as counter
 						}
-						MathOperation <<<counter>>> + 1 and save as counter
+						MathOperation <<<page>>> + 1 and save as page
 					}
-					MathOperation <<<page>>> + 1 and save as page
-				}
 
-				## Return to contract
-				SAP ClickButton id wnd[0]/tbar[0]/btn[3]
-				#%endregion
+					## Return to contract
+					SAP ClickButton id wnd[0]/tbar[0]/btn[3]
+					#%endregion
 
-				#%region Price Details ───────────────────────────────────────────────
-				DefineVariable as "currentStep" with the value "Price Details (Header)"
-				SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/ctxtSG_HEADER_PRICE_SC-COVER_MONTH_VAL Text "<<<coverMonth>>>"
+					#%region Price Detail ────────────────────────────────────────────────
+					DefineVariable as "currentStep" with the value "Price Detail"
+					## Market Price normalized for SAP decimal format (strip thousands separator then decimal)
+					ReplaceFromVariable {marketPrice} this {,} for {}
+					ReplaceFromVariable {marketPrice} this {.} for {,}
+					SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/txtSG_HEADER_PRICE_SC-MKT_FUT_VAL Text "<<<marketPrice>>>"
+					SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/txtSG_HEADER_PRICE_SC-FX Text "<<<fx>>>"
+					SAP SendKey 0
+					RunScript CheckSAPStatus
+					SAP WriteText ElementId wnd[0]/usr/subSS_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:7000/txt<SG>-BID-BASE_PRICE_VAL Text "<<<bidPrice>>>"
+					SAP WriteText ElementId wnd[0]/usr/subSS_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:7000/txt<SG>-BID-CUPSCORE_VAL Text "<<<cupScorePremium>>>"
+					SAP SendKey 0
+					RunScript CheckSAPStatus
 
-				## Market Price normalized for SAP decimal format (strip thousands separator then decimal)
-				ReplaceFromVariable {marketPrice} this {,} for {}
-				ReplaceFromVariable {marketPrice} this {.} for {,}
-				SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/txtSG_HEADER_PRICE_SC-MKT_FUT_VAL Text "<<<marketPrice>>>"
+					SAP ClickButton id wnd[0]/tbar[1]/btn[8]
+					#? Warning: Assumes confirmation dialog (wnd[1]) always appears after btn[8]. If SAP skips the dialog for certain contract types, this instruction will fail and fall into the outer catch.
+					SAP ClickButton id wnd[1]/usr/btnBUTTON_1
+					#%endregion
 
-				SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/txtSG_HEADER_PRICE_SC-FX Text "<<<fx>>>"
-				SAP SendKey 0
-				RunScript CheckSAPStatus
-
-				DefineVariable as "currentStep" with the value "Price Details (BID)"
-				SAP WriteText ElementId wnd[0]/usr/subSS_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:7000/txt<SG>-BID-BASE_PRICE_VAL Text "<<<bidPrice>>>"
-				SAP WriteText ElementId wnd[0]/usr/subSS_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:7000/txt<SG>-BID-CUPSCORE_VAL Text "<<<cupScorePremium>>>"
-				SAP SendKey 0
-				RunScript CheckSAPStatus
-
-				SAP ClickButton id wnd[0]/tbar[1]/btn[8]
-				#? Warning: Assumes confirmation dialog (wnd[1]) always appears after btn[8]. If SAP skips the dialog for certain contract types, this instruction will fail and fall into the outer catch.
-				SAP ClickButton id wnd[1]/usr/btnBUTTON_1
-				#%endregion
-
-				#%region Texts ───────────────────────────────────────────────────────
-				DefineVariable as "currentStep" with the value "Texts"
-				DefineVariable as "hasText" with the value "false"
-				DefineVariable type "List" as "textEntries"
-				if ("<<<textGeneralRemarks>>>" -ne "")
-					DefineVariable as "hasText" with the value "true"
-					AddValueToList "textEntries" value "0001,<<<textGeneralRemarks>>>"
-				end
-				if ("<<<textProducerFloId>>>" -ne "")
-					DefineVariable as "hasText" with the value "true"
-					AddValueToList "textEntries" value "Z043,<<<textProducerFloId>>>"
-				end
-				if ("<<<textPrice>>>" -ne "")
-					DefineVariable as "hasText" with the value "true"
-					AddValueToList "textEntries" value "Z009,<<<textPrice>>>"
-				end
-				if ("<<<textAdditionalCondition>>>" -ne "")
-					DefineVariable as "hasText" with the value "true"
-					AddValueToList "textEntries" value "Z048,<<<textAdditionalCondition>>>"
-				end
-				if ("<<<hasText>>>" -eq "true")
-					CountItems in textEntries and save_as textCount
-					if ("<<<textCount>>>" -gt "0")
-						SAP SelectTab id "wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT"
-						foreach textItem in textEntries {
-							ApplyRegex ".+?(?=,)" to the string "<<<textItem>>>" and save as "txtNode"
-							ApplyRegex "(?<=,).*$" to the string "<<<textItem>>>" and save as "txtVal"
-							SAP SelectTreeItem TreeId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[0]/shell Node "<<<txtNode>>>" Item "Column1"
-							SAP DoubleClickTreeItem TreeId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[0]/shell Node "<<<txtNode>>>" Item "Column1"
-							SAP WriteText ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[1]/shell Text "<<<txtVal>>>"
-						}
+					#%region Texts ───────────────────────────────────────────────────────
+					DefineVariable as "currentStep" with the value "Texts"
+					DefineVariable as "hasText" with the value "false"
+					DefineVariable type "List" as "textEntries"
+					if ("<<<textGeneralRemarks>>>" -ne "")
+						DefineVariable as "hasText" with the value "true"
+						AddValueToList "textEntries" value "0001,<<<textGeneralRemarks>>>"
 					end
-				end
-				#%endregion
-
-				DefineVariable as "rulesHadError" with the value "false"
-				DefineVariable as "rulesErrorDetail" with the value ""
-				DefineVariable type "List" as "ruleCheckValues"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseAdvances>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseWeightBasis>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseReimbursTerms>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseRules>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseArbitration>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseInsurance>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseAdditionalConditions>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseApprovalConditions>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseStuffing>>>"
-				AddValueToList "ruleCheckValues" value "<<<rulesContractFormFixation>>>"
-				DefineVariable as "hasRules" with the value "false"
-				foreach rv in ruleCheckValues {
-					if ("<<<rv>>>" -ne "")
-						DefineVariable as "hasRules" with the value "true"
-						break
+					if ("<<<textProducerFloId>>>" -ne "")
+						DefineVariable as "hasText" with the value "true"
+						AddValueToList "textEntries" value "Z043,<<<textProducerFloId>>>"
 					end
-				}
-				if ("<<<hasRules>>>" -eq "true")
-					#%region Rules ───────────────────────────────────────────────────────
-					DefineVariable as "currentStep" with the value "Rules"
-					SAP SelectTab id "wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpAOHD"
-					## Eight CO-Purchase combo boxes kept as explicit blocks; dynamic element ID (<<<var>>> in id) not verified for SAP SelectComboBox.
-
-					## Advances (CO-Purchase)
-					if ("<<<rulesCoPurchaseAdvances>>>" -ne "")
-						try
-							SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT2 "<<<rulesCoPurchaseAdvances>>>"
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Advances: <<<ex>>>"
+					if ("<<<textPrice>>>" -ne "")
+						DefineVariable as "hasText" with the value "true"
+						AddValueToList "textEntries" value "Z009,<<<textPrice>>>"
+					end
+					if ("<<<textAdditionalCondition>>>" -ne "")
+						DefineVariable as "hasText" with the value "true"
+						AddValueToList "textEntries" value "Z048,<<<textAdditionalCondition>>>"
+					end
+					if ("<<<hasText>>>" -eq "true")
+						CountItems in textEntries and save_as textCount
+						if ("<<<textCount>>>" -gt "0")
+							SAP SelectTab id "wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT"
+							foreach textItem in textEntries {
+								ApplyRegex ".+?(?=,)" to the string "<<<textItem>>>" and save as "txtNode"
+								ApplyRegex "(?<=,).*$" to the string "<<<textItem>>>" and save as "txtVal"
+								SAP SelectTreeItem TreeId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[0]/shell Node "<<<txtNode>>>" Item "Column1"
+								SAP DoubleClickTreeItem TreeId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[0]/shell Node "<<<txtNode>>>" Item "Column1"
+								SAP WriteText ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpTEXT/ssubHEADER_SUB:SAPLWB2A:0137/subSUBSCREEN_TEXT:SAPLV70T:2100/cntlSPLITTER_CONTAINER/shellcont/shellcont/shell/shellcont[1]/shell Text "<<<txtVal>>>"
+							}
 						end
 					end
+					#%endregion
 
-					## Weight Basis (CO-Purchase)
-					if ("<<<rulesCoPurchaseWeightBasis>>>" -ne "")
-						try
-							SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT4 "<<<rulesCoPurchaseWeightBasis>>>"
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | WeightBasis: <<<ex>>>"
+					DefineVariable as "rulesHadError" with the value "false"
+					DefineVariable as "rulesErrorDetail" with the value ""
+					DefineVariable type "List" as "ruleCheckValues"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseAdvances>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseWeightBasis>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseReimbursTerms>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseRules>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseArbitration>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseInsurance>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseAdditionalConditions>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseApprovalConditions>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesCoPurchaseStuffing>>>"
+					AddValueToList "ruleCheckValues" value "<<<rulesContractFormFixation>>>"
+					DefineVariable as "hasRules" with the value "false"
+					foreach rv in ruleCheckValues {
+						if ("<<<rv>>>" -ne "")
+							DefineVariable as "hasRules" with the value "true"
+							break
 						end
-					end
+					}
+					if ("<<<hasRules>>>" -eq "true")
+						#%region Rules ───────────────────────────────────────────────────────
+						DefineVariable as "currentStep" with the value "Rules"
+						SAP SelectTab id "wnd[0]/usr/subSCREEN:SAPLWB2A:0250/tabsSTRIPT_AH_HEAD/tabpAOHD"
+						## Eight CO-Purchase combo boxes kept as explicit blocks; dynamic element ID (<<<var>>> in id) not verified for SAP SelectComboBox.
 
-					## Reimburs. Terms (CO-Purchase)
-					if ("<<<rulesCoPurchaseReimbursTerms>>>" -ne "")
-						try
-							SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT6 "<<<rulesCoPurchaseReimbursTerms>>>"
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | ReimbursTerms: <<<ex>>>"
+						## Advances (CO-Purchase)
+						if ("<<<rulesCoPurchaseAdvances>>>" -ne "")
+							try
+								SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT2 "<<<rulesCoPurchaseAdvances>>>"
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Advances: <<<ex>>>"
+							end
 						end
-					end
 
-					## Rules (CO-Purchase)
-					if ("<<<rulesCoPurchaseRules>>>" -ne "")
-						try
-							SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT8 "<<<rulesCoPurchaseRules>>>"
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Rules: <<<ex>>>"
+						## Weight Basis (CO-Purchase)
+						if ("<<<rulesCoPurchaseWeightBasis>>>" -ne "")
+							try
+								SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT4 "<<<rulesCoPurchaseWeightBasis>>>"
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | WeightBasis: <<<ex>>>"
+							end
 						end
-					end
 
-					## Arbitration (CO-Purchase)
-					if ("<<<rulesCoPurchaseArbitration>>>" -ne "")
-						try
-							SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT10 "<<<rulesCoPurchaseArbitration>>>"
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Arbitration: <<<ex>>>"
+						## Reimburs. Terms (CO-Purchase)
+						if ("<<<rulesCoPurchaseReimbursTerms>>>" -ne "")
+							try
+								SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT6 "<<<rulesCoPurchaseReimbursTerms>>>"
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | ReimbursTerms: <<<ex>>>"
+							end
 						end
-					end
 
-					## Add. Conditions (CO-Purchase)
-					if ("<<<rulesCoPurchaseAdditionalConditions>>>" -ne "")
-						try
-							SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT16 "<<<rulesCoPurchaseAdditionalConditions>>>"
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | AddConditions: <<<ex>>>"
+						## Rules (CO-Purchase)
+						if ("<<<rulesCoPurchaseRules>>>" -ne "")
+							try
+								SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT8 "<<<rulesCoPurchaseRules>>>"
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Rules: <<<ex>>>"
+							end
 						end
-					end
 
-					## Approval Condit. (CO-Purchase)
-					if ("<<<rulesCoPurchaseApprovalConditions>>>" -ne "")
-						try
-							SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT18 "<<<rulesCoPurchaseApprovalConditions>>>"
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | ApprovalCondit: <<<ex>>>"
+						## Arbitration (CO-Purchase)
+						if ("<<<rulesCoPurchaseArbitration>>>" -ne "")
+							try
+								SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT10 "<<<rulesCoPurchaseArbitration>>>"
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Arbitration: <<<ex>>>"
+							end
 						end
-					end
 
-					## Stuffing (CO-Purchase)
-					if ("<<<rulesCoPurchaseStuffing>>>" -ne "")
-						try
-							SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT20 "<<<rulesCoPurchaseStuffing>>>"
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Stuffing: <<<ex>>>"
+						## Add. Conditions (CO-Purchase)
+						if ("<<<rulesCoPurchaseAdditionalConditions>>>" -ne "")
+							try
+								SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT16 "<<<rulesCoPurchaseAdditionalConditions>>>"
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | AddConditions: <<<ex>>>"
+							end
 						end
-					end
 
-					## Insurance and Fixation use radio buttons on screen SAPLWB2A:0251; preceding combo boxes use SAPLWB2A:0260. SAP tab/screen transition is implicit.
-					## Insurance (BUYER / SELLER / NA)
-					if ("<<<rulesCoPurchaseInsurance>>>" -ne "")
-						DefineVariable as "insuranceMatched" with the value "false"
-						try
+						## Approval Condit. (CO-Purchase)
+						if ("<<<rulesCoPurchaseApprovalConditions>>>" -ne "")
+							try
+								SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT18 "<<<rulesCoPurchaseApprovalConditions>>>"
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | ApprovalCondit: <<<ex>>>"
+							end
+						end
+
+						## Stuffing (CO-Purchase)
+						if ("<<<rulesCoPurchaseStuffing>>>" -ne "")
+							try
+								SAP SelectComboBox id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/cmb<SG_DYNPRO>-SCREEN_ELEMENT20 "<<<rulesCoPurchaseStuffing>>>"
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Stuffing: <<<ex>>>"
+							end
+						end
+
+						## Insurance and Fixation use radio buttons on screen SAPLWB2A:0251; preceding combo boxes use SAPLWB2A:0260. SAP tab/screen transition is implicit.
+						## Insurance (BUYER / SELLER / NA)
+						if ("<<<rulesCoPurchaseInsurance>>>" -ne "")
+							DefineVariable as "insuranceMatched" with the value "false"
+							try
 							if ("<<<rulesCoPurchaseInsurance>>>" -eq "BUYER")
 								SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT12
 								SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT12
@@ -605,56 +612,61 @@ foreach rowNum in RowsToProcess {
 								DefineVariable as "rulesHadError" with the value "true"
 								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Insurance: unrecognized value <<<rulesCoPurchaseInsurance>>>"
 							end
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Insurance: <<<ex>>>"
-						end
-					end
-
-					## Fixation (SELLER / BUYER)
-					if ("<<<rulesContractFormFixation>>>" -ne "")
-						DefineVariable as "fixationMatched" with the value "false"
-						try
-							if ("<<<rulesContractFormFixation>>>" -eq "SELLER")
-								SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT23
-								SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT23
-								DefineVariable as "fixationMatched" with the value "true"
-							end
-							if ("<<<rulesContractFormFixation>>>" -eq "BUYER")
-								SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT22
-								SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT22
-								DefineVariable as "fixationMatched" with the value "true"
-							end
-							if ("<<<fixationMatched>>>" -ne "true")
+							catch as ex
 								DefineVariable as "rulesHadError" with the value "true"
-								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Fixation: unrecognized value <<<rulesContractFormFixation>>>"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Insurance: <<<ex>>>"
 							end
-						catch as ex
-							DefineVariable as "rulesHadError" with the value "true"
-							DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Fixation: <<<ex>>>"
 						end
+
+						## Fixation (SELLER / BUYER)
+						if ("<<<rulesContractFormFixation>>>" -ne "")
+							DefineVariable as "fixationMatched" with the value "false"
+							try
+								if ("<<<rulesContractFormFixation>>>" -eq "SELLER")
+									SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT23
+									SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT23
+									DefineVariable as "fixationMatched" with the value "true"
+								end
+								if ("<<<rulesContractFormFixation>>>" -eq "BUYER")
+									SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT22
+									SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT22
+									DefineVariable as "fixationMatched" with the value "true"
+								end
+								if ("<<<fixationMatched>>>" -ne "true")
+									DefineVariable as "rulesHadError" with the value "true"
+									DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Fixation: unrecognized value <<<rulesContractFormFixation>>>"
+								end
+							catch as ex
+								DefineVariable as "rulesHadError" with the value "true"
+								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Fixation: <<<ex>>>"
+							end
+						end
+
+						if ("<<<rulesHadError>>>" -eq "true")
+							DefineVariable as "lastSAPError" with the value "Rules errors:<<<rulesErrorDetail>>>"
+						end
+						#%endregion
 					end
 
+					#%region Finalize / Save ──────────────────────────────────────────────
+					DefineVariable as "currentStep" with the value "Finalize/Save"
+					if ("<<<rulesHadError>>>" -ne "true")
+						SAP ClickButton id wnd[0]/tbar[0]/btn[11]
+						RunScript CheckSAPStatus
+						SAP ClickButton id wnd[0]/tbar[0]/btn[15]
+					end
 					if ("<<<rulesHadError>>>" -eq "true")
-						DefineVariable as "lastSAPError" with the value "Rules errors:<<<rulesErrorDetail>>>"
+						DefineVariable as "rowOutcome" with the value "rules_fail"
+						DefineVariable as "errorDetail" with the value "<<<lastSAPError>>>"
+					else
+						DefineVariable as "rowOutcome" with the value "success"
 					end
 					#%endregion
 				end
-
-				#%region Finalize / Save ──────────────────────────────────────────────
-				DefineVariable as "currentStep" with the value "Finalize/Save"
-				if ("<<<rulesHadError>>>" -ne "true")
-					SAP ClickButton id wnd[0]/tbar[0]/btn[11]
-					RunScript CheckSAPStatus
-					SAP ClickButton id wnd[0]/tbar[0]/btn[15]
+				if ("<<<lastSAPError>>>" -ne "")
+					DefineVariable as "rowOutcome" with the value "exception_fail"
+					DefineVariable as "errorDetail" with the value "<<<currentStep>>>: <<<lastSAPError>>>"
 				end
-				if ("<<<rulesHadError>>>" -eq "true")
-					DefineVariable as "rowOutcome" with the value "rules_fail"
-					DefineVariable as "errorDetail" with the value "<<<lastSAPError>>>"
-				else
-					DefineVariable as "rowOutcome" with the value "success"
-				end
-				#%endregion
 			catch as ex
 				#%region FAILURE HANDLING ────────────────────────────────────────────
 				DefineVariable as "rowOutcome" with the value "exception_fail"
