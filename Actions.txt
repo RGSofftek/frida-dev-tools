@@ -327,7 +327,7 @@ foreach rowNum in RowsToProcess {
 			try
 				## Reset to transaction for each record so navigation is consistent
 				DefineVariable as "currentStep" with the value "Start Transaction"
-				## Start transaction zwb21
+				## Start transaction
 				SAP StartTransaction zwb21
 
 				#%region Header ───────────────────────────────────────────────────────
@@ -337,6 +337,7 @@ foreach rowNum in RowsToProcess {
 					SAP SelectComboBox id wnd[0]/usr/cmbP_LSCTP1 P
 				else
 					SAP SelectComboBox id wnd[0]/usr/cmbP_LSCTP1 S
+					Finish
 				end
 
 				SAP WriteText ElementId wnd[0]/usr/ctxtP_ORG1 Text "<<<orgData>>>"
@@ -344,7 +345,6 @@ foreach rowNum in RowsToProcess {
 				SAP SendKey 0
 				RunScript CheckSAPStatus
 				SAP ClickButton id wnd[0]/tbar[1]/btn[8]
-				RunScript CheckSAPStatus
 				#%endregion
 
 				#%region Basic Data ──────────────────────────────────────────────────
@@ -380,14 +380,10 @@ foreach rowNum in RowsToProcess {
 				SAP WriteText ElementId wnd[0]/usr/subSS_HD_PRICE_DETAILS:ZACMRE_DEAL_CONTRACT:2800/ctxtSG_HEADER_PRICE_SC-COVER_MONTH_VAL Text "<<<coverMonth>>>"
 				SAP SendKey 0
 				RunScript CheckSAPStatus
-				if ("<<<lastSAPError>>>" -ne "")
-					if ("<<<lastSAPError>>>" -like "*Cover Month*")
-						DefineVariable as "lastSAPError" with the value "<<<lastSAPError>>> (Cover Month <<<coverMonth>>> is invalid)"
-					end
-				end
 				#%endregion
-
-				if ("<<<lastSAPError>>>" -eq "")
+				if ("<<<lastSAPError>>>" -like "*Cover Month*")
+					DefineVariable as "lastSAPError" with the value "Cover Month <<<coverMonth>>> is invalid"
+				else
 					#%region Characteristics ─────────────────────────────────────────────
 					DefineVariable as "currentStep" with the value "Characteristics"
 					## Apply provided characteristics to SAP table where names match.
@@ -451,6 +447,7 @@ foreach rowNum in RowsToProcess {
 					DefineVariable as "currentStep" with the value "Texts"
 					DefineVariable as "hasText" with the value "false"
 					DefineVariable type "List" as "textEntries"
+					## If the number of text types grows (e.g. beyond 5–6), consider refactoring to a list-based approach: build a "code,value" list, foreach with inner try/catch around ApplyRegex, and add to textEntries when value is non-empty. One line per new type; slightly more runtime (regex per item) but negligible vs. SAP/Excel.
 					if ("<<<textGeneralRemarks>>>" -ne "")
 						DefineVariable as "hasText" with the value "true"
 						AddValueToList "textEntries" value "0001,<<<textGeneralRemarks>>>"
@@ -593,25 +590,25 @@ foreach rowNum in RowsToProcess {
 						if ("<<<rulesCoPurchaseInsurance>>>" -ne "")
 							DefineVariable as "insuranceMatched" with the value "false"
 							try
-							if ("<<<rulesCoPurchaseInsurance>>>" -eq "BUYER")
-								SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT12
-								SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT12
-								DefineVariable as "insuranceMatched" with the value "true"
-							end
-							if ("<<<rulesCoPurchaseInsurance>>>" -eq "SELLER")
-								SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT14
-								SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT14
-								DefineVariable as "insuranceMatched" with the value "true"
-							end
-							if ("<<<rulesCoPurchaseInsurance>>>" -eq "NA")
-								SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT13
-								SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT13
-								DefineVariable as "insuranceMatched" with the value "true"
-							end
-							if ("<<<insuranceMatched>>>" -ne "true")
-								DefineVariable as "rulesHadError" with the value "true"
-								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Insurance: unrecognized value <<<rulesCoPurchaseInsurance>>>"
-							end
+								if ("<<<rulesCoPurchaseInsurance>>>" -eq "BUYER")
+									SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT12
+									SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT12
+									DefineVariable as "insuranceMatched" with the value "true"
+								end
+								if ("<<<rulesCoPurchaseInsurance>>>" -eq "SELLER")
+									SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT14
+									SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT14
+									DefineVariable as "insuranceMatched" with the value "true"
+								end
+								if ("<<<rulesCoPurchaseInsurance>>>" -eq "NA")
+									SAP SelectRb id wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT13
+									SAP ElementFocus ElementId wnd[0]/usr/subSCREEN:SAPLWB2A:0251/tabsSTRIPT_AH_HEAD/tabpAOHD/ssubHEADER_SUB:SAPLWB2A:0145/subTRADE:SAPLWB2B_SCREEN_HANDLING:0101/subCUSTOMER_DATA:SAPLWB2B_SCREEN_HANDLING:8001/ssubCUSTOMER_DATA:SAPLZACMFG_SCREEN_GRP_CTRL:0010/subSS_HD_1:SAPLZACMFG_SCREEN_GRP_CTRL:0100/ssubSS_TEXTS:SAPLZACMFG_SCREEN_GRP_CTRL:0300/rad<SG_DYNPRO>-SCREEN_ELEMENT13
+									DefineVariable as "insuranceMatched" with the value "true"
+								end
+								if ("<<<insuranceMatched>>>" -ne "true")
+									DefineVariable as "rulesHadError" with the value "true"
+									DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Insurance: unrecognized value <<<rulesCoPurchaseInsurance>>>"
+								end
 							catch as ex
 								DefineVariable as "rulesHadError" with the value "true"
 								DefineVariable as "rulesErrorDetail" with the value "<<<rulesErrorDetail>>> | Insurance: <<<ex>>>"
@@ -671,7 +668,7 @@ foreach rowNum in RowsToProcess {
 				#%region FAILURE HANDLING ────────────────────────────────────────────
 				DefineVariable as "rowOutcome" with the value "exception_fail"
 				if ("<<<lastSAPError>>>" -ne "")
-					DefineVariable as "errorDetail" with the value "<<<currentStep>>>: <<<lastSAPError>>>"
+					DefineVariable as "errorDetail" with the value "<<<stepWithError>>>: <<<lastSAPError>>>"
 				else
 					if ("<<<ex>>>" -ne "")
 						DefineVariable as "errorDetail" with the value "<<<currentStep>>>: <<<ex>>>"
@@ -693,8 +690,7 @@ foreach rowNum in RowsToProcess {
 			GetCurrentDate format={"MM/dd/yyyy HH:mm:ss" en} and save as NowHuman
 			Excel Append from WSProcessed at [1 ="<<<rowNum>>>",2 ="SUCCESS",3 ="<<<NowHuman>>>",4 ="<<<runId>>>"]
 			Excel Save WBName
-		end
-		if ("<<<rowOutcome>>>" -ne "success")
+		else
 			DefineVariable as "rowCategory" with the value "VALIDATION"
 			if ("<<<rowOutcome>>>" -eq "rules_fail")
 				DefineVariable as "rowCategory" with the value "RULES ERROR"

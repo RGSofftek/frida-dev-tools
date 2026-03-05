@@ -7,5 +7,6 @@ DefineVariable as "sapStatusType" with the value "<<<StatInfo[2]>>>"
 if ("<<<sapStatusType>>>" -ne "")
 	if ("<<<sapStatusType>>>" -ne "S")
 		DefineVariable as "lastSAPError" with the value "SAP(<<<sapStatusType>>>) [<<<sapStatusId>>>]: <<<sapStatusMsg>>>"
+		DefineVariable as "stepWithError" with the value "<<<currentStep>>>"
 	end
 end
