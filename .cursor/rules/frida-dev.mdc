@@ -21,11 +21,11 @@ When running frida-lint-fix for a script that contains `RunScript <Name>`, inclu
 
 ## Resolve FRIDA syntax from docs when editing
 
-When adding or changing FRIDA instructions in a script, resolve syntax and parameters from `docs/readers-index.md` and the relevant `docs/<reader>-reader.md` (and frida-core for structure). Do not guess instruction names or parameters.
+When adding or changing FRIDA instructions in a script, resolve syntax and parameters from `.cursor/docs/readers-index.md` and the relevant `.cursor/docs/<reader>-reader.md` (and frida-core for structure). Do not guess instruction names or parameters.
 
 ## Run FRIDA tooling from project root
 
-Run all FRIDA-related tooling (frida_lint format/check, fix_templates, etc.) from the project root so paths and config (e.g. `.fridalintrc`) resolve correctly.
+Run shared FRIDA tooling from the project root: `python .cursor/tools/frida_lint.py` (format/check). Project-local scripts (e.g. root `fix_templates.py`) stay at repo root. Paths and config (e.g. `.fridalintrc`) resolve from the current working directory (project root).
 
 ## Update sub-scripts when the contract changes
 

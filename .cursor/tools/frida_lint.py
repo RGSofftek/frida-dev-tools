@@ -3,8 +3,8 @@
 frida-lint: Ruff-inspired linter and formatter for FRIDA (.txt) scripts.
 
 Usage:
-  python tools/frida_lint.py check <files|globs>
-  python tools/frida_lint.py format <files|globs>
+  python .cursor/tools/frida_lint.py check <files|globs>
+  python .cursor/tools/frida_lint.py format <files|globs>
 
 Stdlib only: re, argparse, json, dataclasses, pathlib, sys, difflib, glob.
 """

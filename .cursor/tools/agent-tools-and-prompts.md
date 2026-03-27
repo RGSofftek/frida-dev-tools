@@ -85,7 +85,7 @@ Other tools (Write, StrReplace, Delete, Glob, EditNotebook, WebSearch, mcp_web_f
 
 **How to get the agent to use Shell**
 
-- Ask to run a specific command: “Run `python tools/frida_lint.py check Actions.txt`.”
+- Ask to run a specific command: “Run `python .cursor/tools/frida_lint.py check Actions.txt`.”
 - Ask for setup or install: “Install dependencies”, “Run the tests.”
 - The agent is instructed to prefer Read/Grep/Write over terminal for file operations; for actual commands (tests, linters, scripts), asking explicitly for “run …” or “execute …” leads to Shell.
 
@@ -135,7 +135,7 @@ Other tools (Write, StrReplace, Delete, Glob, EditNotebook, WebSearch, mcp_web_f
 
 - “Find all uses of RunScript in the FRIDA scripts.”
 - “Read the first 50 lines of Actions.txt and suggest a checkpoint comment.”
-- “Fix the lint errors reported in tools/frida_lint.py.”
+- “Fix the lint errors reported in .cursor/tools/frida_lint.py.”
 
 ---
 

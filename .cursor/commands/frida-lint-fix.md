@@ -12,8 +12,8 @@ Run the FRIDA formatter, then the linter; for any reported issues, propose solut
 
 ### Step 1 – Format then lint
 
-1. Run: `python tools/frida_lint.py format <target>`
-2. Run: `python tools/frida_lint.py check --json <target>` and capture full stdout and the exit code.
+1. Run: `python .cursor/tools/frida_lint.py format <target>`
+2. Run: `python .cursor/tools/frida_lint.py check --json <target>` and capture full stdout and the exit code.
 
 ### Step 2 – If check reported issues (exit code 1)
 
@@ -32,9 +32,9 @@ Run the FRIDA formatter, then the linter; for any reported issues, propose solut
 ### Step 3 – Apply approved fixes and re-run
 
 1. After the user approves (all or a subset):
-   - For approved diagnostics that are fixable by the linter: you may run `python tools/frida_lint.py check --fix <target>` (and `--unsafe-fixes` only if the user explicitly allowed unsafe fixes) to apply those fixes in one go.
+   - For approved diagnostics that are fixable by the linter: you may run `python .cursor/tools/frida_lint.py check --fix <target>` (and `--unsafe-fixes` only if the user explicitly allowed unsafe fixes) to apply those fixes in one go.
    - For all other approved diagnostics: implement the proposed edits in the workspace (apply the exact line/snippet changes you described).
-2. Run again: `python tools/frida_lint.py format <target>` then `python tools/frida_lint.py check --json <target>`.
+2. Run again: `python .cursor/tools/frida_lint.py format <target>` then `python .cursor/tools/frida_lint.py check --json <target>`.
 3. If the check still reports issues, go back to Step 2 (propose solutions → wait for approval → implement → re-run).
 4. If the check passes (exit code 0), report **"Lint clean"** and stop.
 
@@ -45,7 +45,7 @@ Run the FRIDA formatter, then the linter; for any reported issues, propose solut
 
 ## Optional: using the linter’s built-in fix
 
-- When the user approves "all" and every remaining diagnostic is fixable by the linter, you may run once: `python tools/frida_lint.py check --fix <target>` (and `--unsafe-fixes` only if the user explicitly allows it).
+- When the user approves "all" and every remaining diagnostic is fixable by the linter, you may run once: `python .cursor/tools/frida_lint.py check --fix <target>` (and `--unsafe-fixes` only if the user explicitly allows it).
 - Then run `format` and `check --json` again and continue the propose/approve loop for any remaining (non-fixable or not-yet-approved) issues.
 
 ## Summary

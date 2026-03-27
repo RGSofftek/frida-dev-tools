@@ -10,14 +10,14 @@ alwaysApply: true
 When writing FRIDA code, follow this scoped retrieval workflow:
 
 1. **Apply rules first**: Always apply this core rule, then only the reader-specific rule(s) matching the request (e.g., `frida-sap.mdc` for SAP tasks).
-2. **Route through docs index**: Start function lookup from `docs/readers-index.md` to identify which reader doc(s) to load.
-3. **Load only target reader docs**: Read only the relevant `docs/<reader>-reader.md` file(s) for syntax and parameters.
-4. **Use syntax cheatsheet sparingly**: Consult `docs/syntax-cheatsheet.md` only for shared syntax (variables, control flow, operators).
-5. **Docs first, readers.json second**: Prefer `docs/` as the primary function reference. Use `readers.json` only when docs are ambiguous, incomplete, or conflicting.
+2. **Route through docs index**: Start function lookup from `.cursor/docs/readers-index.md` to identify which reader doc(s) to load.
+3. **Load only target reader docs**: Read only the relevant `.cursor/docs/<reader>-reader.md` file(s) for syntax and parameters.
+4. **Use syntax cheatsheet sparingly**: Consult `.cursor/docs/syntax-cheatsheet.md` only for shared syntax (variables, control flow, operators).
+5. **Docs first, readers.json second**: Prefer `.cursor/docs/` as the primary function reference. Use `readers.json` only when docs are ambiguous, incomplete, or conflicting.
 
 **Responsibilities:**
 - **Rules** (`*.mdc`) = mandates, anti-patterns, ambiguity control
-- **Docs** (`docs/`) = function syntax, parameters, examples
+- **Docs** (`.cursor/docs/`) = function syntax, parameters, examples
 
 Do not load full `readers.json` or all reader docs for a single-reader task.
 
@@ -221,13 +221,13 @@ Use cases: mandatory-field validation, "has any rule" detection, and similar mul
 
 ## CountItems preconditions
 
-- `CountItems` throws `Variable is null` when the target variable is null (per `docs/mix-reader.md`: "If variable is null it will return an error").
+- `CountItems` throws `Variable is null` when the target variable is null (per `.cursor/docs/mix-reader.md`: "If variable is null it will return an error").
 - Before calling `CountItems in <varName> and save_as <varName2>`, always guarantee that `<varName>` has been **defined and populated**, not just declared.
 - For list accumulators that may legitimately end up empty (e.g. optional texts, dynamic filters), guard `CountItems` with a separate boolean flag (e.g. `hasItems`) or with a prior check that at least one contributing input is non-empty, and **skip the `CountItems` call entirely** if the flag is false.
 
 ## SendMail
 
-**Avoid special characters** in subject/body that may break the lexer - use hyphen `-` instead of en dash `–`. See `docs/mix-reader.md` for full syntax.
+**Avoid special characters** in subject/body that may break the lexer - use hyphen `-` instead of en dash `–`. See `.cursor/docs/mix-reader.md` for full syntax.
 
 ## System Notifications / `systemnotify`
 
