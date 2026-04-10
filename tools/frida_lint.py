@@ -1,12 +1,39 @@
 #!/usr/bin/env python3
 """
-frida-lint: Ruff-inspired linter and formatter for FRIDA (.txt) scripts.
+Tool: frida-lint (frida_lint.py)
 
-Usage:
-  python .cursor/tools/frida_lint.py check <files|globs>
-  python .cursor/tools/frida_lint.py format <files|globs>
+Problem:
+  FRIDA automation scripts are plain .txt files with reader-specific syntax. This tool enforces
+  style, structure, and safety rules (indentation, single-line instructions, Cognitive-safe ASCII
+  via W019, etc.) and can auto-fix many issues. Config is optional via .fridalintrc in the cwd.
 
-Stdlib only: re, argparse, json, dataclasses, pathlib, sys, difflib, glob.
+Usage (run from project root so imports and .fridalintrc resolve correctly):
+  python .cursor/tools/frida_lint.py check <file-or-glob> [<file-or-glob> ...]
+  python .cursor/tools/frida_lint.py format <file-or-glob> [<file-or-glob> ...]
+
+Global options (before the subcommand):
+  --config PATH     Use this JSON config instead of searching for .fridalintrc / .frida-lintrc
+  --no-color        Disable colored terminal output
+  --follow-scripts  Expand the file set to include targets of RunScript lines
+
+Subcommand: check
+  Positional: one or more files or globs (e.g. Actions.txt, *.txt)
+  --fix             Apply safe automatic fixes
+  --unsafe-fixes    Also apply fixes marked unsafe
+  --diff            Print a diff of fixes; do not write files
+  --statistics      Print per-rule counts
+  --json            Emit diagnostics as JSON
+  --select RULES    Comma-separated rule codes to enable (overrides config select)
+  --ignore RULES    Comma-separated rule codes to ignore
+  --safe-tabs       Keep existing tab depth; disable S001 fixes/reports
+
+Subcommand: format
+  Positional: one or more files or globs
+  --diff            Print diff only; do not write
+  --check           Exit with status 1 if any file would change
+  --safe-tabs       Preserve tab depth (avoid parser-based reindent)
+
+Depends on frida_cognitive_ascii in this directory for W019 / format ASCII normalization.
 """
 
 from __future__ import annotations
@@ -21,6 +48,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable
 from collections import Counter
+
+from frida_cognitive_ascii import sanitize_for_cognitive_upload
 
 # -----------------------------------------------------------------------------
 # Constants
@@ -227,7 +256,14 @@ RE_SAVE_VALUE_AS = re.compile(r'save\s+its\s+value\s+as\s+["{]([^"}]+)["}]', re.
 RE_GETHOME_AS = re.compile(r'GetHome\s+as\s+"([^"]+)"', re.IGNORECASE)
 RE_GETCURRENTDATE_SAVE = re.compile(r'GetCurrentDate\s+.*?\s+and\s+save\s+as\s+([A-Za-z_][A-Za-z0-9_]*)', re.IGNORECASE)
 RE_FOREACH_VAR = re.compile(r"^\s*foreach\s+(\w+)\s+in\s+", re.IGNORECASE)
+RE_FOREACH_LIST = re.compile(r"foreach\s+\w+\s+in\s+(\w+)", re.IGNORECASE)
+RE_ADDVAR_VALUE = re.compile(r'AddVarToList\s+"[^"]+"\s+value\s+"([^"]+)"', re.IGNORECASE)
+RE_READ_ELEMENT_AS = re.compile(r"ReadElement\s+.+\s+as\s+(\w+)", re.IGNORECASE)
+RE_GETSTATUSINFO_AS = re.compile(r"GetStatusInfo\s+as\s+(\w+)", re.IGNORECASE)
 RE_RUNTIME_VAR = re.compile(r"<<<([^>]+)>>>")
+# Simple <<<name>>> and <<<name[...]>>> bases (nested <<<>>> inside brackets handled separately).
+RE_RUNTIME_VAR_SIMPLE = re.compile(r"<<<([A-Za-z_][a-zA-Z0-9_]*)>>>")
+RE_RUNTIME_INDEXED_BASE = re.compile(r"<<<([A-Za-z_][a-zA-Z0-9_]*)\[")
 # Match only true globals of the form <<name>>, not the inner part of <<<name>>>.
 # Use lookbehind/lookahead to ensure exactly two angle brackets.
 RE_GLOBAL_VAR = re.compile(r"(?<!<)<<([^<>]+)>>(?!>)")
@@ -388,7 +424,11 @@ def parse_file(lines: list[str], path: Path) -> tuple[list[LineRecord], ParseCon
             if ctx.region_stack:
                 ctx.region_stack.pop()
 
-        if line_type == LineType.variable_op or line_type == LineType.instruction:
+        scan_decl_and_uses = line_type in (LineType.variable_op, LineType.instruction) or (
+            line_type == LineType.block_open
+            and block_kw in ("if", "while", "for", "foreach", "switch", "case", "default")
+        )
+        if scan_decl_and_uses:
             if ctx.in_header_doc and non_comment_non_blank > 20:
                 ctx.in_header_doc = False
             m = RE_DEFINE_VAR.search(stripped)
@@ -408,7 +448,23 @@ def parse_file(lines: list[str], path: Path) -> tuple[list[LineRecord], ParseCon
             if line_type == LineType.variable_op:
                 for m in RE_FOREACH_VAR.finditer(stripped):
                     ctx.loop_vars.add(m.group(1))
+            m_list = RE_FOREACH_LIST.search(stripped)
+            if m_list:
+                ctx.used.setdefault(m_list.group(1), []).append(line_no)
+            for m in RE_ADDVAR_VALUE.finditer(stripped):
+                ctx.used.setdefault(m.group(1).strip(), []).append(line_no)
+            for m in RE_READ_ELEMENT_AS.finditer(stripped):
+                ctx.save_as_vars.add(m.group(1).strip())
+            for m in RE_GETSTATUSINFO_AS.finditer(stripped):
+                ctx.save_as_vars.add(m.group(1).strip())
             for m in RE_RUNTIME_VAR.finditer(stripped):
+                inner = m.group(1)
+                if "<" in inner:
+                    continue
+                ctx.used.setdefault(inner, []).append(line_no)
+            for m in RE_RUNTIME_VAR_SIMPLE.finditer(stripped):
+                ctx.used.setdefault(m.group(1), []).append(line_no)
+            for m in RE_RUNTIME_INDEXED_BASE.finditer(stripped):
                 ctx.used.setdefault(m.group(1), []).append(line_no)
             for m in RE_GLOBAL_VAR.finditer(stripped):
                 g = m.group(1)
@@ -479,6 +535,29 @@ def resolve_files(paths: list[str], follow_scripts: bool = False) -> list[Path]:
             if path not in seen:
                 seen.add(path)
                 result.append(path)
+
+    if follow_scripts:
+        i = 0
+        while i < len(result):
+            path = result[i]
+            i += 1
+            if path.suffix.lower() != ".txt":
+                continue
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for raw_line in text.splitlines():
+                line = raw_line.strip()
+                m = RE_RUNSCRIPT.match(line)
+                if not m:
+                    continue
+                name = m.group(1).strip()
+                base = name if name.lower().endswith(".txt") else f"{name}.txt"
+                child = (path.parent / base).resolve()
+                if child.is_file() and child not in seen:
+                    seen.add(child)
+                    result.append(child)
 
     return sorted(result)
 
@@ -781,32 +860,20 @@ def rule_w007_excel_not_closed(records: list[LineRecord], ctx: ParseContext) -> 
     return []
 
 
-def rule_w008_sendmail_chars(records: list[LineRecord], ctx: ParseContext) -> list[Diagnostic]:
+def rule_w019_cognitive_ascii(records: list[LineRecord], ctx: ParseContext) -> list[Diagnostic]:
+    """Non-ASCII / Cognitive-unsafe characters anywhere on the line (shared rules with upload sanitization)."""
     out: list[Diagnostic] = []
-    # Map problematic punctuation to ASCII-safe equivalents.
-    translation = {
-        "\u2010": "-",
-        "\u2011": "-",
-        "\u2012": "-",
-        "\u2013": "-",
-        "\u2014": "-",
-        "\u2015": "-",
-        "\u2018": "'",
-        "\u2019": "'",
-        "\u201C": '"',
-        "\u201D": '"',
-    }
     for r in records:
-        if "SendMail" not in r.stripped and "sendmail" not in r.stripped.lower():
+        if r.line_type == LineType.blank:
+            continue
+        if "W019" in r.noqa_codes or "ALL" in r.noqa_codes:
             continue
         original = r.stripped
-        fixed = "".join(translation.get(ch, ch) for ch in original)
+        fixed = sanitize_for_cognitive_upload(original)
         if fixed != original:
-            if "W008" in r.noqa_codes or "ALL" in r.noqa_codes:
-                continue
             out.append(Diagnostic(
-                file="", line=r.line_no, col=1, code="W008",
-                message="Special characters in SendMail (use hyphen and straight quotes)",
+                file="", line=r.line_no, col=1, code="W019",
+                message="Non-ASCII or Cognitive-unsafe characters (prefer ASCII; run format or check --fix)",
                 severity="warning", fixable=True, fix_kind="safe",
                 fix_replacement=[fixed],
             ))
@@ -1160,7 +1227,7 @@ def run_lint(records: list[LineRecord], ctx: ParseContext, config: Config, file_
         ("W005", lambda: rule_w005_finish_in_loop(records, ctx)),
         ("W006", lambda: rule_w006_sap_outside_try(records, ctx)),
         ("W007", lambda: rule_w007_excel_not_closed(records, ctx)),
-        ("W008", lambda: rule_w008_sendmail_chars(records, ctx)),
+        ("W019", lambda: rule_w019_cognitive_ascii(records, ctx)),
         ("W009", lambda: rule_w009_no_closetrans_in_catch(records, ctx)),
         ("W010", lambda: rule_w010_unmatched_region(records, ctx)),
         ("W011", lambda: rule_w011_readcell_without_check(records, ctx)),
@@ -1212,11 +1279,14 @@ def format_file(records: list[LineRecord], config: Config, preserve_tab_depth: b
         prev_blank = False
         if preserve_tab_depth:
             existing_indent = r.stripped[: len(r.stripped) - len(r.stripped.lstrip())]
-            out.append(existing_indent + content)
+            assembled = existing_indent + content
         else:
             # Canonical indentation is derived from control-flow depth.
             line_indent = indent_str * r.depth
-            out.append(line_indent + content)
+            assembled = line_indent + content
+        if "W019" not in r.noqa_codes and "ALL" not in r.noqa_codes:
+            assembled = sanitize_for_cognitive_upload(assembled)
+        out.append(assembled)
     result = "\n".join(out)
     if result and not result.endswith("\n"):
         result += "\n"
