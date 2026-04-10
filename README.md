@@ -50,5 +50,3 @@ git subtree push --prefix=.cursor frida-tooling main
 - Linter (from **project root**): `python .cursor/tools/frida_lint.py format|check ...`
 
 Project root keeps `.fridalintrc` and other project-local files as today.
-
-Hi bro
