@@ -59,6 +59,8 @@ Respect the user if they ask for **`--dry-run`** (print payloads only) or pass t
 
 **Environment variables** (when not overridden by flags): `COGNITIVE_USER_UUID`, `COGNITIVE_APP_USAGE_AUTH`, `COGNITIVE_PROCESS_ID`, `COGNITIVE_STEP_INDEX`, `COGNITIVE_PLATFORM`, `COGNITIVE_CLIENT_VERSION`. If sync fails for auth or missing files, report the error output clearly.
 
+To **pull** remote `Actions.txt` down after editing on Cognitive (opposite direction), use `python .cursor/tools/fetch_actions_from_cognitive.py` (see that script for `--dry-run` and `--backup`).
+
 ## Summary
 
 1. `format` → `check --fix` → `format` → `check --json` (all with the same `<target>` and optional `--follow-scripts`).

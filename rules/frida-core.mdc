@@ -128,6 +128,10 @@ end
 
 **Operators:** Use `-eq`, `-ne`, `-gt`, `-lt`, `-ge`, `-le`
 
+**If conditions (compound logic):** For several simple checks on the same flow (e.g. not empty and not `NA`), prefer **one** `if` with `-AND` / `-OR` instead of nested `if` blocks when it stays readable. Example: `if (("<<<x>>>" -ne "") -AND ("<<<x>>>" -ne "NA")) ... end`. Verify in a short run if your FRIDA build differs; `while` is still restricted (below).
+
+**Avoid redundant gate flags:** Do not introduce a string flag (e.g. `inputOk`) that is set inside an `if` and immediately tested in a second `if` wrapping the same work. Use **one** outer `if` whose condition is the real precondition (possibly compound), then branch inner cases (`else` for alternate messages, nested `if` for sub-conditions). Reserve flag variables for cases where the condition is computed once and reused **later** or across **non-adjacent** code paths.
+
 **While limitations:** Cannot use `-AND`/`-OR`/`-NOT`/`-XOR` in `while` conditions. Keep conditions simple; use `if` + `break` inside the loop for complex logic.
 
 ```
