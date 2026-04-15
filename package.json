@@ -1,0 +1,81 @@
+{
+  "name": "frida-editor-tools",
+  "displayName": "FRIDA Editor Tools",
+  "description": "Language support for FRIDA automation scripts.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "frida",
+        "aliases": [
+          "FRIDA",
+          "frida"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "frida",
+        "scopeName": "source.frida",
+        "path": "./syntaxes/frida.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "frida",
+        "path": "./snippets/frida.json"
+      }
+    ],
+    "configuration": {
+      "title": "FRIDA Editor",
+      "properties": {
+        "frida.filePatterns": {
+          "type": "array",
+          "description": "Globs used to auto-assign FRIDA language mode to .txt scripts.",
+          "default": [
+            "**/Actions.txt",
+            "**/*SAPStatus*.txt"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "frida.rebuildCompletionIndex",
+        "title": "FRIDA: Rebuild Completion Index"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build:index": "python ./scripts/build_completion_index.py --docs ../.cursor/docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json",
+    "test": "vitest run && pytest scripts/tests/",
+    "test:ts": "vitest run",
+    "test:py": "pytest scripts/tests/",
+    "vscode:prepublish": "npm run build:index && npm run compile",
+    "package": "npm run vscode:prepublish && vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.5.4",
+    "vitest": "^3.1.1",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.11",
+    "@vscode/vsce": "^3.2.2"
+  }
+}

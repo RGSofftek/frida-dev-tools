@@ -1,0 +1,156 @@
+{
+  "name": "FRIDA",
+  "scopeName": "source.frida",
+  "patterns": [
+    {
+      "include": "#region-markers"
+    },
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#variables"
+    },
+    {
+      "include": "#control-flow"
+    },
+    {
+      "include": "#comparison-operators"
+    },
+    {
+      "include": "#reader-prefixes"
+    },
+    {
+      "include": "#mix-verbs"
+    },
+    {
+      "include": "#increment"
+    },
+    {
+      "include": "#numbers"
+    }
+  ],
+  "repository": {
+    "region-markers": {
+      "patterns": [
+        {
+          "match": "^\\s*(#%region)\\b.*$",
+          "name": "meta.region.begin.frida"
+        },
+        {
+          "match": "^\\s*(#%endregion)\\b.*$",
+          "name": "meta.region.end.frida"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "match": "##\\s+noqa(?:-begin|-end)?(?::\\s*[A-Z0-9,\\s]+)?\\s*$",
+          "name": "comment.line.suppression.frida"
+        },
+        {
+          "match": "^\\s*#\\*.*$",
+          "name": "comment.line.important.frida"
+        },
+        {
+          "match": "^\\s*#\\?.*$",
+          "name": "comment.line.warning.frida"
+        },
+        {
+          "match": "^\\s*#!.*$",
+          "name": "comment.line.error.frida"
+        },
+        {
+          "match": "##.*$",
+          "name": "comment.line.number-sign.frida"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.frida",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "match": "\\\\.",
+              "name": "constant.character.escape.frida"
+            },
+            {
+              "include": "#variables"
+            }
+          ]
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "match": "<<<[^>\\r\\n]+>>>",
+          "name": "variable.other.runtime.frida"
+        },
+        {
+          "match": "<<[^>\\r\\n]+>>",
+          "name": "variable.other.global.frida"
+        },
+        {
+          "match": "\\{[^}\\r\\n]+\\}",
+          "name": "variable.other.braced.frida"
+        }
+      ]
+    },
+    "control-flow": {
+      "patterns": [
+        {
+          "match": "\\b(if|else|end|foreach|for|while|switch|case|default|try|catch|break|in)\\b",
+          "name": "keyword.control.frida"
+        }
+      ]
+    },
+    "comparison-operators": {
+      "patterns": [
+        {
+          "match": "\\b(-eq|-ne|-gt|-lt|-ge|-le|-AND|-OR|-NOT|-like|-match)\\b",
+          "name": "keyword.operator.frida"
+        }
+      ]
+    },
+    "reader-prefixes": {
+      "patterns": [
+        {
+          "match": "^\\s*(SAP|Excel|Web2|Web|PPT|Word|DB|File|Titanium|Mail)\\b",
+          "name": "entity.name.namespace.frida"
+        }
+      ]
+    },
+    "mix-verbs": {
+      "patterns": [
+        {
+          "match": "^\\s*(DefineVariable|RunScript|Trim|ApplyRegex|ReplaceFromVariable|CountItems|AddValueToList|AddVarToList|SplitIntoList|TrimList|RemoveDuplicatesInList|MathOperation|ApplyFilterInList|Get2DListItem|AddValueTo2DList|Substring|SystemNotify|Message|Finish|SendMail|GetHome|GetCurrentDate|JoinListValues|GetAllLines|WriteAllLines|WriteAllText|LoadJSON|StringToList|ParseVariable)\\b",
+          "name": "entity.name.function.frida"
+        }
+      ]
+    },
+    "increment": {
+      "patterns": [
+        {
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\+\\+\\b",
+          "name": "keyword.operator.increment.frida"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "match": "\\b\\d+(?:\\.\\d+)?\\b",
+          "name": "constant.numeric.frida"
+        }
+      ]
+    }
+  }
+}

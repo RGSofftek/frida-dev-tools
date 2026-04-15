@@ -1,0 +1,104 @@
+{
+  "If Block": {
+    "prefix": "if",
+    "body": [
+      "if (\"<<<${1:var}>>>\" -eq \"${2:value}\")",
+      "\t$0",
+      "end"
+    ],
+    "description": "Basic if/end block"
+  },
+  "If Else Block": {
+    "prefix": "ife",
+    "body": [
+      "if (\"<<<${1:var}>>>\" -eq \"${2:value}\")",
+      "\t${3:## true branch}",
+      "else",
+      "\t${4:## false branch}",
+      "end"
+    ],
+    "description": "if/else/end block"
+  },
+  "ForEach Block": {
+    "prefix": "foreach",
+    "body": [
+      "foreach ${1:item} in ${2:list} {",
+      "\t$0",
+      "}"
+    ],
+    "description": "foreach loop block"
+  },
+  "For Times Block": {
+    "prefix": "for",
+    "body": [
+      "for ${1:N} times {",
+      "\t$0",
+      "}"
+    ],
+    "description": "for N times loop"
+  },
+  "While Block": {
+    "prefix": "while",
+    "body": [
+      "while (\"<<<${1:condition}>>>\" -eq \"true\") {",
+      "\t$0",
+      "}"
+    ],
+    "description": "while loop with string boolean check"
+  },
+  "Try Catch Block": {
+    "prefix": "try",
+    "body": [
+      "try",
+      "\t$0",
+      "catch as ex",
+      "\t## Error: <<<ex>>>",
+      "end"
+    ],
+    "description": "try/catch/end block"
+  },
+  "Switch Block": {
+    "prefix": "switch",
+    "body": [
+      "switch (<<<${1:expression}>>>) {",
+      "\tcase \"${2:value}\" :",
+      "\t\t${3:## case logic}",
+      "\tend",
+      "\tdefault :",
+      "\t\t${4:## default logic}",
+      "\tend",
+      "}"
+    ],
+    "description": "switch/case/default block"
+  },
+  "DefineVariable": {
+    "prefix": "defvar",
+    "body": [
+      "DefineVariable as \"${1:name}\" with the value \"${2:value}\""
+    ],
+    "description": "Declare a variable"
+  },
+  "Define List Variable": {
+    "prefix": "deflist",
+    "body": [
+      "DefineVariable type \"List\" as \"${1:name}\""
+    ],
+    "description": "Declare a list variable"
+  },
+  "Region Block": {
+    "prefix": "region",
+    "body": [
+      "#%region ${1:NAME}",
+      "$0",
+      "#%endregion"
+    ],
+    "description": "Foldable region markers"
+  },
+  "RunScript": {
+    "prefix": "runscript",
+    "body": [
+      "RunScript ${1:ScriptName}"
+    ],
+    "description": "Invoke another FRIDA script"
+  }
+}

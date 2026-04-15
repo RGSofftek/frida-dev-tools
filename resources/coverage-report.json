@@ -1,0 +1,90 @@
+{
+  "total_functions": 596,
+  "total_syntax_variants": 1150,
+  "functions_with_syntax": 586,
+  "functions_missing_syntax": 10,
+  "per_reader": [
+    {
+      "reader": "Web2",
+      "functions": 39,
+      "with_syntax": 38,
+      "missing_syntax": 1,
+      "variants": 56
+    },
+    {
+      "reader": "DB",
+      "functions": 8,
+      "with_syntax": 7,
+      "missing_syntax": 1,
+      "variants": 9
+    },
+    {
+      "reader": "Excel",
+      "functions": 200,
+      "with_syntax": 199,
+      "missing_syntax": 1,
+      "variants": 444
+    },
+    {
+      "reader": "File",
+      "functions": 38,
+      "with_syntax": 37,
+      "missing_syntax": 1,
+      "variants": 73
+    },
+    {
+      "reader": "Mix",
+      "functions": 136,
+      "with_syntax": 135,
+      "missing_syntax": 1,
+      "variants": 305
+    },
+    {
+      "reader": "Mail",
+      "functions": 17,
+      "with_syntax": 16,
+      "missing_syntax": 1,
+      "variants": 50
+    },
+    {
+      "reader": "PPT",
+      "functions": 7,
+      "with_syntax": 6,
+      "missing_syntax": 1,
+      "variants": 6
+    },
+    {
+      "reader": "SAP",
+      "functions": 90,
+      "with_syntax": 89,
+      "missing_syntax": 1,
+      "variants": 98
+    },
+    {
+      "reader": "Titanium",
+      "functions": 26,
+      "with_syntax": 25,
+      "missing_syntax": 1,
+      "variants": 53
+    },
+    {
+      "reader": "Word",
+      "functions": 35,
+      "with_syntax": 34,
+      "missing_syntax": 1,
+      "variants": 56
+    }
+  ],
+  "top_missing": [
+    "Web2/----------",
+    "DB/----------",
+    "Excel/----------",
+    "File/----------",
+    "Mix/----------",
+    "Mail/----------",
+    "PPT/----------",
+    "SAP/----------",
+    "Titanium/----------",
+    "Word/----------"
+  ]
+}
