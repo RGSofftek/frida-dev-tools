@@ -53,13 +53,13 @@ Or define explicit associations in your workspace:
 The completion index is generated from docs in this repo:
 
 ```bash
-python ./scripts/build_completion_index.py --docs ../.cursor/docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json
+python ./scripts/build_completion_index.py --docs ./.cursor/docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json
 ```
 
 Optional enrichment with an external `readers.json`:
 
 ```bash
-python ./scripts/build_completion_index.py --docs ../.cursor/docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json --readers C:/path/to/readers.json
+python ./scripts/build_completion_index.py --docs ./.cursor/docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json --readers C:/path/to/readers.json
 ```
 
 ## Tests
