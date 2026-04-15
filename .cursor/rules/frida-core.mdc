@@ -128,6 +128,10 @@ end
 
 **Operators:** Use `-eq`, `-ne`, `-gt`, `-lt`, `-ge`, `-le`
 
+**If conditions (compound logic):** For several simple checks on the same flow (e.g. not empty and not `NA`), prefer **one** `if` with `-AND` / `-OR` instead of nested `if` blocks when it stays readable. Example: `if (("<<<x>>>" -ne "") -AND ("<<<x>>>" -ne "NA")) ... end`. Verify in a short run if your FRIDA build differs; `while` is still restricted (below).
+
+**Avoid redundant gate flags:** Do not introduce a string flag (e.g. `inputOk`) that is set inside an `if` and immediately tested in a second `if` wrapping the same work. Use **one** outer `if` whose condition is the real precondition (possibly compound), then branch inner cases (`else` for alternate messages, nested `if` for sub-conditions). Reserve flag variables for cases where the condition is computed once and reused **later** or across **non-adjacent** code paths.
+
 **While limitations:** Cannot use `-AND`/`-OR`/`-NOT`/`-XOR` in `while` conditions. Keep conditions simple; use `if` + `break` inside the loop for complex logic.
 
 ```
@@ -225,9 +229,17 @@ Use cases: mandatory-field validation, "has any rule" detection, and similar mul
 - Before calling `CountItems in <varName> and save_as <varName2>`, always guarantee that `<varName>` has been **defined and populated**, not just declared.
 - For list accumulators that may legitimately end up empty (e.g. optional texts, dynamic filters), guard `CountItems` with a separate boolean flag (e.g. `hasItems`) or with a prior check that at least one contributing input is non-empty, and **skip the `CountItems` call entirely** if the flag is false.
 
+## Cognitive / ASCII-safe text (upload alignment)
+
+When syncing FRIDA scripts to **Cognitive Testing**, file content must be **ASCII-safe** at upload time (the Azure `createTxtFile` API rejects non-ASCII in payloads).
+
+- **Authoring:** Prefer plain ASCII in comments, region markers, and instructions (hyphens `-` instead of en/em dashes or box-drawing, straight quotes, avoid decorative Unicode). This matches runtime safety for `SendMail` and avoids surprises on sync.
+- **Lint/format:** `python .cursor/tools/frida_lint.py check` reports **W019** on lines that need normalization; **`format`** and **`check --fix`** apply the same rules as `.cursor/tools/frida_cognitive_ascii.py` (shared with `.cursor/tools/sync_actions_to_cognitive.py`). To keep intentional Unicode on a line, use `## noqa: W019` or `## noqa: ALL` on that line (format skips ASCII normalization for noqa’d lines).
+- **Upload safety net:** `python .cursor/tools/sync_actions_to_cognitive.py` still sanitizes by default (`--no-sanitize` to send as-is) so a file that skipped lint remains uploadable when possible.
+
 ## SendMail
 
-**Avoid special characters** in subject/body that may break the lexer - use hyphen `-` instead of en dash `–`. See `.cursor/docs/mix-reader.md` for full syntax.
+**Avoid special characters** in subject/body that may break the lexer - use hyphen `-` instead of en dash `–`. See `.cursor/docs/mix-reader.md` for full syntax. **W019** covers Cognitive-safe ASCII on every line; SendMail remains especially sensitive to lexer-breaking typography.
 
 ## System Notifications / `systemnotify`
 

@@ -24,7 +24,7 @@ Run the FRIDA formatter, then the linter; for any reported issues, propose solut
    - **Message**: `message`
    - **Severity**: `severity`
    - **Proposed solution**:
-     - If the rule is fixable by the linter (e.g. E002, S001, S002, S003, W008, C001, C004): describe the exact edit, or state that you will apply the linter’s safe/unsafe fix for this rule after approval.
+     - If the rule is fixable by the linter (e.g. E002, S001, S002, S003, W019, C001, C004): describe the exact edit, or state that you will apply the linter’s safe/unsafe fix for this rule after approval.
      - If not fixable by the linter: propose a concrete code change (snippet or line-level edit).
 3. Ask the user in chat: **"Approve all, approve specific items (by file:line or by code), or give feedback/changes."**
 4. **Do not apply any file changes until the user has approved (all or a subset) in chat.**

@@ -9,7 +9,7 @@ This repository is the **canonical contents of project root `.cursor/`**. Consum
 | Path | Purpose |
 |------|---------|
 | `agents/` | Cursor agent definitions |
-| `commands/` | Cursor slash commands (e.g. frida-lint-fix, plan-review) |
+| `commands/` | Cursor slash commands (e.g. frida-lint-fix, frida-lint-sync-cognitive, plan-review) |
 | `rules/` | Cursor rules (`.mdc`) for FRIDA workflows |
 | `skills/` | Cursor skills (e.g. frida-log-analysis) |
 | `docs/` | FRIDA reader reference markdown |
