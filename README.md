@@ -31,20 +31,38 @@ The generated completion index currently uses `schemaVersion: 2`.
 
 This extension does not claim all `.txt` files.
 
-Configure `frida.filePatterns` to auto-assign language mode:
+In the repository where you run FRIDA scripts, create or update `.vscode/settings.json` and configure `frida.filePatterns` to auto-assign language mode:
 
 ```json
-"frida.filePatterns": [
-  "**/Actions.txt",
-  "**/*SAPStatus*.txt"
-]
+{
+  "frida.filePatterns": [
+    "**/Actions.txt",
+    "**/*SAPStatus*.txt"
+  ]
+}
 ```
 
-Or define explicit associations in your workspace:
+Add more FRIDA script names by adding additional globs to `frida.filePatterns`. For example:
 
 ```json
-"files.associations": {
-  "**/Actions.txt": "frida"
+{
+  "frida.filePatterns": [
+    "**/Actions.txt",
+    "**/headers.txt",
+    "**/datadrive.txt",
+    "**/*SAPStatus*.txt",
+    "**/*MyCustomFridaScript*.txt"
+  ]
+}
+```
+
+You can also define explicit language associations in your workspace:
+
+```json
+{
+  "files.associations": {
+    "**/Actions.txt": "frida"
+  }
 }
 ```
 
