@@ -1,0 +1,138 @@
+{
+    // Auto-detect FRIDA language mode for these script files.
+    "frida.filePatterns": [
+        "**/Actions.txt"
+    ],
+
+    // Force bundled FRIDA palette instead of auto theme detection.
+    // Valid values: "auto", "dark", "light", "highContrast"
+    "frida.syntaxColorScheme": "dark",
+
+    // FRIDA TextMate colors (scope-based). These apply to any token carrying *.frida scopes.
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            // <placeholder>
+            {
+                "scope": "variable.parameter.placeholder.frida",
+                "settings": {
+                    "foreground": "#E07A5F"
+                }
+            },
+            // <<global>>
+            {
+                "scope": "variable.other.global.frida",
+                "settings": {
+                    "foreground": "#6B9FD9"
+                }
+            },
+            // <<<runtime>>>
+            {
+                "scope": "variable.other.runtime.frida",
+                "settings": {
+                    "foreground": "#4EC9B0"
+                }
+            },
+            // {braced}
+            {
+                "scope": "variable.other.braced.frida",
+                "settings": {
+                    "foreground": "#DCDC9F"
+                }
+            },
+            // Reader prefix (SAP, Excel, Web, ...)
+            {
+                "scope": "entity.name.namespace.frida",
+                "settings": {
+                    "foreground": "#9CDCFE"
+                }
+            },
+            // Mix verbs (DefineVariable, RunScript, ...)
+            {
+                "scope": "entity.name.function.frida",
+                "settings": {
+                    "foreground": "#EFB080"
+                }
+            },
+            {
+                "scope": "keyword.control.frida",
+                "settings": {
+                    "foreground": "#C586C0"
+                }
+            },
+            {
+                "scope": "keyword.operator.frida",
+                "settings": {
+                    "foreground": "#D4D4D4"
+                }
+            },
+            {
+                "scope": "keyword.operator.increment.frida",
+                "settings": {
+                    "foreground": "#D4D4D4"
+                }
+            },
+            {
+                "scope": "string.quoted.double.frida",
+                "settings": {
+                    "foreground": "#CE9178"
+                }
+            },
+            {
+                "scope": "constant.character.escape.frida",
+                "settings": {
+                    "foreground": "#D7BA7D"
+                }
+            },
+            {
+                "scope": "constant.numeric.frida",
+                "settings": {
+                    "foreground": "#B5CEA8"
+                }
+            },
+            {
+                "scope": "comment.line.suppression.frida",
+                "settings": {
+                    "foreground": "#6A9955"
+                }
+            },
+            {
+                "scope": "comment.line.important.frida",
+                "settings": {
+                    "foreground": "#6A9955"
+                }
+            },
+            {
+                "scope": "comment.line.warning.frida",
+                "settings": {
+                    "foreground": "#D7BA7D"
+                }
+            },
+            {
+                "scope": "comment.line.error.frida",
+                "settings": {
+                    "foreground": "#F44747"
+                }
+            },
+            {
+                "scope": "comment.line.number-sign.frida",
+                "settings": {
+                    "foreground": "#6A9955"
+                }
+            },
+            {
+                "scope": "meta.region.begin.frida",
+                "settings": {
+                    "foreground": "#569CD6",
+                    "fontStyle": "italic"
+                }
+            },
+            {
+                "scope": "meta.region.end.frida",
+                "settings": {
+                    "foreground": "#569CD6",
+                    "fontStyle": "italic"
+                }
+            }
+        ]
+    }
+}

@@ -14,6 +14,10 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
+  "bin": {
+    "frida-rpa": "./out/cli.js",
+    "frida-work": "./out/cli.js"
+  },
   "contributes": {
     "languages": [
       {
@@ -51,6 +55,24 @@
           "items": {
             "type": "string"
           }
+        },
+        "frida.syntaxColorScheme": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "dark",
+            "light",
+            "highContrast"
+          ],
+          "default": "auto",
+          "description": "Which bundled FRIDA syntax palette to apply in user settings under the \"[frida]\" language block: editor.tokenColorCustomizations.textMateRules. \"auto\" follows the active color theme kind (dark / light / high contrast). Forced values ignore theme detection. Applied while the extension is enabled."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[frida]": {
+        "editor.tokenColorCustomizations": {
+          "textMateRules": []
         }
       }
     },
@@ -69,16 +91,20 @@
     "test:ts": "vitest run",
     "test:py": "pytest scripts/tests/",
     "vscode:prepublish": "npm run build:index && npm run compile",
-    "package": "npm run vscode:prepublish && vsce package"
+    "package": "npm run vscode:prepublish && vsce package",
+    "cli": "node ./out/cli.js"
   },
   "devDependencies": {
     "@types/node": "^20.14.12",
     "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.2",
     "typescript": "^5.5.4",
     "vitest": "^3.1.1",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver": "^9.0.1",
-    "vscode-languageserver-textdocument": "^1.0.11",
-    "@vscode/vsce": "^3.2.2"
+    "vscode-languageserver-textdocument": "^1.0.11"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
   }
 }

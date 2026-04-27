@@ -1,0 +1,312 @@
+16/4/2026 16:08:59 - Process Name : TimbradoFacturasGlobales
+16/4/2026 16:08:59 - Process ID : 1555960
+16/4/2026 16:08:59 - Turing Version : 20260115T1413
+16/4/2026 16:08:59 - User : rodrigo.gracia@softtek.com
+16/4/2026 16:08:59 - Hostname : MXTRMPRFDA05
+16/4/2026 16:08:59 - Execution started : No Headless
+16/4/2026 16:08:59 - ----Input Variables----
+16/4/2026 16:08:59 - SAPUser: "BOTTIMBFACTR"
+16/4/2026 16:08:59 - GlobalVbelnList: "5700400304"
+16/4/2026 16:08:59 - -----------------------
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Running
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Success
+16/4/2026 16:08:59 - ## GLOBAL VARIABLES (define in Frida UI before execution) : Running
+16/4/2026 16:08:59 - ## GLOBAL VARIABLES (define in Frida UI before execution) : Success
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Running
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Success
+16/4/2026 16:08:59 - ## BOTTIMBFACTR - SAP username : Running
+16/4/2026 16:08:59 - ## BOTTIMBFACTR - SAP username : Success
+16/4/2026 16:08:59 - ## ************ - SAP password : Running
+16/4/2026 16:08:59 - ## ************ - SAP password : Success
+16/4/2026 16:08:59 - ## 5700400304 - Comma-separated GLOBAL_VBELN values (no quotes). Each token must be exactly 10 digits (e.g. 5700400304). Use NA only for empty handling; valid IDs required to run SAP steps. Invalid tokens trigger a Windows notification listing what was skipped. : Running
+16/4/2026 16:08:59 - ## 5700400304 - Comma-separated GLOBAL_VBELN values (no quotes). Each token must be exactly 10 digits (e.g. 5700400304). Use NA only for empty handling; valid IDs required to run SAP steps. Invalid tokens trigger a Windows notification listing what was skipped. : Success
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Running
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Success
+16/4/2026 16:08:59 - ## Grid control id (matches SAP Scripting recorder path) : Running
+16/4/2026 16:08:59 - ## Grid control id (matches SAP Scripting recorder path) : Success
+16/4/2026 16:08:59 - DefineVariable as "gridShellId" with the value "wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : gridShellId
+Value : wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell
+16/4/2026 16:08:59 - DefineVariable as "gridShellId" with the value "wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell" : Success
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Running
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Success
+16/4/2026 16:08:59 - ## Preconditions: build WHERE from 5700400304 : Running
+16/4/2026 16:08:59 - ## Preconditions: build WHERE from 5700400304 : Success
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Running
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Success
+16/4/2026 16:08:59 - DefineVariable as "globalVbelnCsv" with the value "5700400304" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : globalVbelnCsv
+Value : 5700400304
+16/4/2026 16:08:59 - DefineVariable as "globalVbelnCsv" with the value "5700400304" : Success
+16/4/2026 16:08:59 - Trim globalVbelnCsv : Running
+16/4/2026 16:08:59 - Se actualizo la variable : 
+Var Name : globalVbelnCsv
+Value : 5700400304
+16/4/2026 16:08:59 - Trim globalVbelnCsv : Success
+16/4/2026 16:08:59 - If Evaluation Expression : (("5700400304" -ne "") -AND ("5700400304" -ne "NA"))
+16/4/2026 16:08:59 - PS evaluation time: 59
+16/4/2026 16:08:59 - If Result : True
+16/4/2026 16:08:59 - If Block Running
+16/4/2026 16:08:59 - DefineVariable type "List" as "vbelnIds" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : vbelnIds
+Value : 
+16/4/2026 16:08:59 - DefineVariable type "List" as "vbelnIds" : Success
+16/4/2026 16:08:59 - SplitIntoList the variable "globalVbelnCsv" every "," character consider consecutive and save as a list "vbelnIds" : Running
+16/4/2026 16:08:59 - Var Name : vbelnIds
+Value : 
+[0] : 5700400304
+
+16/4/2026 16:08:59 - SplitIntoList the variable "globalVbelnCsv" every "," character consider consecutive and save as a list "vbelnIds" : Success
+16/4/2026 16:08:59 - DefineVariable type "int" as "vbelnValidCount" with the value "0" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : vbelnValidCount
+Value : 0
+16/4/2026 16:08:59 - DefineVariable type "int" as "vbelnValidCount" with the value "0" : Success
+16/4/2026 16:08:59 - DefineVariable type "List" as "vbelnRejectedTokens" ## noqa: W002 : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : vbelnRejectedTokens ## noqa: W002
+Value : 
+16/4/2026 16:08:59 - DefineVariable type "List" as "vbelnRejectedTokens" ## noqa: W002 : Success
+16/4/2026 16:08:59 - DefineVariable type "int" as "vbelnRejectedCount" with the value "0" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : vbelnRejectedCount
+Value : 0
+16/4/2026 16:08:59 - DefineVariable type "int" as "vbelnRejectedCount" with the value "0" : Success
+16/4/2026 16:08:59 - Foreach Block Running
+16/4/2026 16:08:59 - Foreach Iterator Name : vbelnId
+16/4/2026 16:08:59 - Foreach Variable Name : vbelnIds
+16/4/2026 16:08:59 - DefineVariable as "vbelnTrim" with the value "5700400304" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : vbelnTrim
+Value : 5700400304
+16/4/2026 16:08:59 - DefineVariable as "vbelnTrim" with the value "5700400304" : Success
+16/4/2026 16:08:59 - Trim vbelnTrim : Running
+16/4/2026 16:08:59 - Se actualizo la variable : 
+Var Name : vbelnTrim
+Value : 5700400304
+16/4/2026 16:08:59 - Trim vbelnTrim : Success
+16/4/2026 16:08:59 - If Evaluation Expression : ("5700400304" -ne "")
+16/4/2026 16:08:59 - PS evaluation time: 24
+16/4/2026 16:08:59 - If Result : True
+16/4/2026 16:08:59 - If Block Running
+16/4/2026 16:08:59 - Try Block Running
+16/4/2026 16:08:59 - ApplyRegex "^\d{10}$" to the string "5700400304" and save as "vbelnMatched" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : vbelnMatched
+Value : 5700400304
+16/4/2026 16:08:59 - ApplyRegex "^\d{10}$" to the string "5700400304" and save as "vbelnMatched" : Success
+16/4/2026 16:08:59 - DefineVariable as "oneQuoted" with the value "'5700400304'" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : oneQuoted
+Value : '5700400304'
+16/4/2026 16:08:59 - DefineVariable as "oneQuoted" with the value "'5700400304'" : Success
+16/4/2026 16:08:59 - AddVarToList "vbelnQuotedParts" value "oneQuoted" : Running
+16/4/2026 16:08:59 - Var Name : vbelnQuotedParts
+Value : 
+[0] : '5700400304'
+
+16/4/2026 16:08:59 - AddVarToList "vbelnQuotedParts" value "oneQuoted" : Success
+16/4/2026 16:08:59 - vbelnValidCount++ : Running
+16/4/2026 16:08:59 - Se actualizo la variable : 
+Var Name : vbelnValidCount
+Value : 1
+16/4/2026 16:08:59 - vbelnValidCount++ : Success
+16/4/2026 16:08:59 - Try Block End
+16/4/2026 16:08:59 - If Block End
+16/4/2026 16:08:59 - Foreach Block End
+16/4/2026 16:08:59 - If Evaluation Expression : (0 > 0)
+16/4/2026 16:08:59 - If Result: False
+16/4/2026 16:08:59 - Else Block Running
+16/4/2026 16:08:59 - Else Block End
+16/4/2026 16:08:59 - If Evaluation Expression : (1 > 0)
+16/4/2026 16:08:59 - If Result: True
+16/4/2026 16:08:59 - If Block Running
+16/4/2026 16:08:59 - JoinListValues from list {vbelnQuotedParts} and save as {inListFragment} ending with {,} last with {} : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : inListFragment
+Value : '5700400304'
+16/4/2026 16:08:59 - JoinListValues from list {vbelnQuotedParts} and save as {inListFragment} ending with {,} last with {} : Success
+16/4/2026 16:08:59 - DefineVariable as "whereClause" with the value "STAT_RERUN NE 'X' AND GLOBAL_VBELN in ('5700400304')" : Running
+16/4/2026 16:08:59 - Se agrego una nueva variable : 
+Var Name : whereClause
+Value : STAT_RERUN NE 'X' AND GLOBAL_VBELN in ('5700400304')
+16/4/2026 16:08:59 - DefineVariable as "whereClause" with the value "STAT_RERUN NE 'X' AND GLOBAL_VBELN in ('5700400304')" : Success
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Running
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Success
+16/4/2026 16:08:59 - ## VW_UPDATE main flow (only runs when WHERE clause is valid) : Running
+16/4/2026 16:08:59 - ## VW_UPDATE main flow (only runs when WHERE clause is valid) : Success
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Running
+16/4/2026 16:08:59 - ## --------------------------------------------------------------------------- : Success
+16/4/2026 16:08:59 - #%region SAP_LOGIN_AND_QUERY : Running
+16/4/2026 16:08:59 - #%region SAP_LOGIN_AND_QUERY : Success
+16/4/2026 16:08:59 - ## Connect and open table maintenance for /ACC1/TGLOBAL with dynamic WHERE : Running
+16/4/2026 16:08:59 - ## Connect and open table maintenance for /ACC1/TGLOBAL with dynamic WHERE : Success
+16/4/2026 16:08:59 - SAP RunSapInstance "02 Calidad E1Q" 100 BOTTIMBFACTR ************ ES graphic : Running
+16/4/2026 16:09:00 - SapScriptExecute PipelineId: SAPReaderEngine04162026040859282p.m.w81
+16/4/2026 16:09:09 - Success
+16/4/2026 16:09:09 - Ram before GC: 62 MB
+16/4/2026 16:09:09 - Ram after GC: 62 MB
+16/4/2026 16:09:09 - SAP RunSapInstance "02 Calidad E1Q" 100 BOTTIMBFACTR ************ ES graphic : Success
+16/4/2026 16:09:09 - ## Start /ACC1/VW_UPDATE to edit /ACC1/TGLOBAL with built WHERE clause : Running
+16/4/2026 16:09:09 - ## Start /ACC1/VW_UPDATE to edit /ACC1/TGLOBAL with built WHERE clause : Success
+16/4/2026 16:09:09 - SAP StartTransaction /n/ACC1/VW_UPDATE : Running
+16/4/2026 16:09:10 - SAP StartTransaction /n/ACC1/VW_UPDATE : Success
+16/4/2026 16:09:10 - SAP WriteText ElementId wnd[0]/usr/ctxtVIEWNAME Text "/ACC1/TGLOBAL" : Running
+16/4/2026 16:09:10 - SAP WriteText ElementId wnd[0]/usr/ctxtVIEWNAME Text "/ACC1/TGLOBAL" : Success
+16/4/2026 16:09:10 - SAP WriteText ElementId wnd[0]/usr/txtDONDE Text "STAT_RERUN NE 'X' AND GLOBAL_VBELN in ('5700400304')" : Running
+16/4/2026 16:09:10 - SAP WriteText ElementId wnd[0]/usr/txtDONDE Text "STAT_RERUN NE 'X' AND GLOBAL_VBELN in ('5700400304')" : Success
+16/4/2026 16:09:10 - SAP ClickButton id wnd[0]/tbar[1]/btn[8] : Running
+16/4/2026 16:09:11 - SAP ClickButton id wnd[0]/tbar[1]/btn[8] : Success
+16/4/2026 16:09:11 - SAP ClickButton id wnd[0]/tbar[1]/btn[2] : Running
+16/4/2026 16:09:11 - SAP ClickButton id wnd[0]/tbar[1]/btn[2] : Success
+16/4/2026 16:09:11 - #%endregion : Running
+16/4/2026 16:09:11 - #%endregion : Success
+16/4/2026 16:09:11 - #%region SORT_NETWR_ASC : Running
+16/4/2026 16:09:11 - #%region SORT_NETWR_ASC : Success
+16/4/2026 16:09:11 - ## Select NETWR column; sort ascending (ClickGridToolBtn = grid pressToolbarButton; ClickToolBarButton is for GuiToolbarControl only) : Running
+16/4/2026 16:09:11 - ## Select NETWR column; sort ascending (ClickGridToolBtn = grid pressToolbarButton; ClickToolBarButton is for GuiToolbarControl only) : Success
+16/4/2026 16:09:11 - SAP SelectGridCell GridId wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell Row -1 Column NETWR : Running
+16/4/2026 16:09:11 - SAP SelectGridCell GridId wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell Row -1 Column NETWR : Success
+16/4/2026 16:09:11 - SAP SelectGridCol id wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell "NETWR" : Running
+16/4/2026 16:09:12 - SAP SelectGridCol id wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell "NETWR" : Success
+16/4/2026 16:09:12 - SAP ClickGridToolBtn GridId wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell ButtonId "&SORT_ASC" : Running
+16/4/2026 16:09:12 - SAP ClickGridToolBtn GridId wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell ButtonId "&SORT_ASC" : Success
+16/4/2026 16:09:12 - #%endregion : Running
+16/4/2026 16:09:12 - #%endregion : Success
+16/4/2026 16:09:12 - #%region NETWR_SCAN_AND_BUMP_ZEROS : Running
+16/4/2026 16:09:12 - #%region NETWR_SCAN_AND_BUMP_ZEROS : Success
+16/4/2026 16:09:12 - ## Read each row NETWR (EU-style amounts: thousands . decimal ,). Bump zeros to 0.05. Track first row index with NETWR > 0 (informational only). : Running
+16/4/2026 16:09:12 - ## Read each row NETWR (EU-style amounts: thousands . decimal ,). Bump zeros to 0.05. Track first row index with NETWR > 0 (informational only). : Success
+16/4/2026 16:09:12 - DefineVariable type "int" as "gridRowCount" with the value "0" : Running
+16/4/2026 16:09:12 - Se agrego una nueva variable : 
+Var Name : gridRowCount
+Value : 0
+16/4/2026 16:09:12 - DefineVariable type "int" as "gridRowCount" with the value "0" : Success
+16/4/2026 16:09:12 - SAP GetGridRowNumber GridId wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell as gridRowCount : Running
+16/4/2026 16:09:12 - Se actualizo la variable : 
+Var Name : gridRowCount
+Value : 1663
+16/4/2026 16:09:12 - Ram before GC: 63 MB
+16/4/2026 16:09:12 - Ram after GC: 63 MB
+16/4/2026 16:09:12 - SAP GetGridRowNumber GridId wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell as gridRowCount : Success
+16/4/2026 16:09:12 - DefineVariable type "int" as "rowIdx" with the value "0" : Running
+16/4/2026 16:09:12 - Se agrego una nueva variable : 
+Var Name : rowIdx
+Value : 0
+16/4/2026 16:09:12 - DefineVariable type "int" as "rowIdx" with the value "0" : Success
+16/4/2026 16:09:12 - DefineVariable as "firstPositiveRow" with the value "" : Running
+16/4/2026 16:09:12 - Se agrego una nueva variable : 
+Var Name : firstPositiveRow
+Value : 
+16/4/2026 16:09:12 - DefineVariable as "firstPositiveRow" with the value "" : Success
+16/4/2026 16:09:12 - ## noqa-begin: W006 : Running
+16/4/2026 16:09:12 - ## noqa-begin: W006 : Success
+16/4/2026 16:09:12 - For Block Running
+16/4/2026 16:09:12 - For running for : 1663
+16/4/2026 16:09:12 - DefineVariable as "netwrRaw" with the value "" : Running
+16/4/2026 16:09:12 - Se agrego una nueva variable : 
+Var Name : netwrRaw
+Value : 
+16/4/2026 16:09:12 - DefineVariable as "netwrRaw" with the value "" : Success
+16/4/2026 16:09:12 - SAP ReadGridCell wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell Column NETWR Row 0 as netwrRaw : Running
+16/4/2026 16:09:12 - Se actualizo la variable : 
+Var Name : netwrRaw
+Value : 11.75
+16/4/2026 16:09:12 - Ram before GC: 63 MB
+16/4/2026 16:09:12 - Ram after GC: 63 MB
+16/4/2026 16:09:12 - SAP ReadGridCell wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell Column NETWR Row 0 as netwrRaw : Success
+16/4/2026 16:09:12 - SystemNotify Type "Notification" with message "11.75" : Running
+16/4/2026 16:09:19 - SystemNotify Type "Notification" with message "11.75" : Success
+16/4/2026 16:09:19 - DefineVariable as "netwrNorm" with the value "11.75" : Running
+16/4/2026 16:09:19 - Se agrego una nueva variable : 
+Var Name : netwrNorm
+Value : 11.75
+16/4/2026 16:09:19 - DefineVariable as "netwrNorm" with the value "11.75" : Success
+16/4/2026 16:09:19 - Trim netwrNorm : Running
+16/4/2026 16:09:19 - Se actualizo la variable : 
+Var Name : netwrNorm
+Value : 11.75
+16/4/2026 16:09:19 - Trim netwrNorm : Success
+16/4/2026 16:09:19 - If Evaluation Expression : ("11.75" -eq "")
+16/4/2026 16:09:19 - PS evaluation time: 36
+16/4/2026 16:09:19 - If Result : False
+16/4/2026 16:09:19 - Else Block Running
+16/4/2026 16:09:19 - Else Block End
+16/4/2026 16:09:19 - ReplaceFromVariable {netwrNorm} this {.} for {} : Running
+16/4/2026 16:09:19 - Se actualizo la variable : 
+Var Name : netwrNorm
+Value : 1175
+16/4/2026 16:09:19 - ReplaceFromVariable {netwrNorm} this {.} for {} : Success
+16/4/2026 16:09:19 - ReplaceFromVariable {netwrNorm} this {COMMA} for {.} : Running
+16/4/2026 16:09:19 - Se actualizo la variable : 
+Var Name : netwrNorm
+Value : 1175
+16/4/2026 16:09:19 - ReplaceFromVariable {netwrNorm} this {COMMA} for {.} : Success
+16/4/2026 16:09:19 - If Evaluation Expression : ("" -eq "")
+16/4/2026 16:09:19 - PS evaluation time: 18
+16/4/2026 16:09:19 - If Result : True
+16/4/2026 16:09:19 - If Block Running
+16/4/2026 16:09:19 - If Evaluation Expression : (1175 > 0)
+16/4/2026 16:09:19 - If Result: True
+16/4/2026 16:09:19 - If Block Running
+16/4/2026 16:09:19 - DefineVariable as "firstPositiveRow" with the value "0" : Running
+16/4/2026 16:09:19 - Se actualizo la variable : 
+Var Name : firstPositiveRow
+Value : 0
+16/4/2026 16:09:19 - DefineVariable as "firstPositiveRow" with the value "0" : Success
+16/4/2026 16:09:19 - If Block End
+16/4/2026 16:09:19 - If Block End
+16/4/2026 16:09:19 - If Evaluation Expression : (1175 == 0)
+16/4/2026 16:09:19 - If Result: False
+16/4/2026 16:09:19 - Else Block Running
+16/4/2026 16:09:19 - Else Block End
+16/4/2026 16:09:19 - rowIdx++ : Running
+16/4/2026 16:09:19 - Se actualizo la variable : 
+Var Name : rowIdx
+Value : 1
+16/4/2026 16:09:19 - rowIdx++ : Success
+16/4/2026 16:09:19 - DefineVariable as "netwrRaw" with the value "" : Running
+16/4/2026 16:09:19 - Se actualizo la variable : 
+Var Name : netwrRaw
+Value : 
+16/4/2026 16:09:19 - DefineVariable as "netwrRaw" with the value "" : Success
+16/4/2026 16:09:19 - SAP ReadGridCell wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell Column NETWR Row 1 as netwrRaw : Running
+16/4/2026 16:09:19 - Se actualizo la variable : 
+Var Name : netwrRaw
+Value : 16.51
+16/4/2026 16:09:19 - Ram before GC: 63 MB
+16/4/2026 16:09:19 - Ram after GC: 63 MB
+16/4/2026 16:09:19 - SAP ReadGridCell wnd[0]/usr/cntlCUSTOM_CONTAINER/shellcont/shell Column NETWR Row 1 as netwrRaw : Success
+16/4/2026 16:09:19 - SystemNotify Type "Notification" with message "16.51" : Running
+16/4/2026 16:09:30 - SystemNotify Type "Notification" with message "16.51" : Success
+16/4/2026 16:09:30 - If Block End
+16/4/2026 16:09:30 - If Block End
+16/4/2026 16:09:32 - 
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+SAPREADERENGINE LOG
+--------------------------------------------------------------------16/4/2026 16:09:00 :
+Message :
+Trying to initialize
+--------------------------------------------------------------------16/4/2026 16:09:00 :
+Message :
+Initialized
+--------------------------------------------------------------------16/4/2026 16:09:00 :
+Message :
+Running at 32 bit
+Process Name: TimbradoFacturasGlobales
+Process ID: 1555960
+Turing Version: 20260115T1413
+Hostname: MXTRMPRFDA05
+Execution started: No Headless
+--------------------------------------------------------------------16/4/2026 16:09:31 :
+Message :
+Trying to terminate.
+--------------------------------------------------------------------16/4/2026 16:09:31 :
+Message :
+Terminated
+
+16/4/2026 16:09:32 - Execution ended
+16/4/2026 16:09:32 - Execution cancelled by the user
