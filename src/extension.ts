@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import * as vscode from "vscode";
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from "vscode-languageclient/node";
+import { registerFridaTokenColorApplication } from "./fridaApplyTokenColors";
 
 let client: LanguageClient | undefined;
 
@@ -32,6 +33,8 @@ async function applyLanguageForDocument(doc: vscode.TextDocument, patterns: stri
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
+  registerFridaTokenColorApplication(context);
+
   const serverModule = context.asAbsolutePath(path.join("out", "server.js"));
   const indexPath = context.asAbsolutePath(path.join("resources", "frida.completion.json"));
 

@@ -99,6 +99,10 @@
           "name": "variable.other.global.frida"
         },
         {
+          "match": "(?<!<)<(?!<)[^>\\r\\n]+>",
+          "name": "variable.parameter.placeholder.frida"
+        },
+        {
           "match": "\\{[^}\\r\\n]+\\}",
           "name": "variable.other.braced.frida"
         }
