@@ -187,13 +187,147 @@ export function hasLintErrorSeverity(diagnostics: LintDiagnostic[]): boolean {
   return diagnostics.some((d) => d.severity === "error");
 }
 
-function countRemainingUnsafeFixable(diagnostics: LintDiagnostic[]): number {
-  return diagnostics.filter((d) => d.fixable && d.fix_kind === "unsafe" && d.severity !== "error").length;
+/**
+ * User-facing `file:line` for linters; uses basename so long process paths stay readable.
+ */
+export function formatDiagnosticLocation(d: LintDiagnostic): string {
+  return `${path.basename(d.file)}:${d.line}`;
 }
 
-function formatRemainingUnsafeHint(count: number): string {
-  if (count <= 0) return "";
-  return `frida-rpa: ${count} unsafe auto-fix(es) were not applied (e.g. W004). Re-run with --unsafe-fixes, add ## noqa: <CODE> on the line, or edit the script.\n`;
+function countBySeverity(
+  diagnostics: LintDiagnostic[],
+  severity: string,
+): number {
+  return diagnostics.filter((d) => d.severity === severity).length;
+}
+
+/**
+ * One-line description of what non-error issues remain, for the "Status" block.
+ */
+export function formatNonErrorCountsLine(diagnostics: LintDiagnostic[]): string {
+  if (diagnostics.length === 0) return "No non-error issues remain.";
+  if (diagnostics.length === 1) {
+    const s = diagnostics[0].severity;
+    if (s === "warning") return "No errors were found, but 1 warning still needs your decision.";
+    if (s === "convention")
+      return "No errors were found, but 1 convention still needs your attention.";
+    if (s === "style")
+      return "No errors were found, but 1 style issue still needs your attention.";
+    return "No errors were found, but 1 non-error lint issue still needs your attention.";
+  }
+  const w = countBySeverity(diagnostics, "warning");
+  const c = countBySeverity(diagnostics, "convention");
+  const st = countBySeverity(diagnostics, "style");
+  const parts: string[] = [];
+  if (w) parts.push(`${w} warning(s)`);
+  if (c) parts.push(`${c} convention(s)`);
+  if (st) parts.push(`${st} style issue(s)`);
+  const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
+  return `No errors were found, but ${diagnostics.length} non-error lint issues remain${detail}. Review the list below.`;
+}
+
+/**
+ * Lists each non-error diagnostic with code, location, and message (2 lines per issue).
+ */
+export function formatRemainingDiagnosticsSummary(diagnostics: LintDiagnostic[]): string {
+  return diagnostics
+    .map((d) => `  ${d.code}  ${formatDiagnosticLocation(d)}\n  ${d.message}`)
+    .join("\n\n");
+}
+
+/**
+ * When unsafe auto-fixes were not run, explains why and what the user can do next.
+ */
+export function formatUnsafeFixGuidance(diagnostics: LintDiagnostic[], unsafeFixesEnabled: boolean): string {
+  if (unsafeFixesEnabled) {
+    return "";
+  }
+  const unsafe = diagnostics.filter(
+    (d) => d.fixable && d.fix_kind === "unsafe" && d.severity !== "error",
+  );
+  if (unsafe.length === 0) {
+    return "";
+  }
+  const hasW004 = unsafe.some((d) => d.code === "W004");
+  const lines: string[] = [
+    "Why it was not changed automatically:",
+  ];
+  if (hasW004) {
+    lines.push(
+      "  For W004, the unsafe fix comments out or removes systemnotify, which can change whether an",
+      "  OS confirmation window appears, so the linter will not do that unless you run with",
+      "  --unsafe-fixes and review the result.",
+    );
+  } else {
+    lines.push(
+      "  These auto-fixes are marked unsafe because they may change script meaning or what the end user sees.",
+    );
+  }
+  lines.push(
+    "",
+    "Choose one:",
+    "  frida-rpa fix --unsafe-fixes         Apply those unsafe auto-fixes (then review the diff in git)",
+    "  Add ## noqa: <CODE> on the line  Keep the line intentionally; suppress the rule for that line",
+    "  Edit the script manually              Fix or replace the line yourself",
+    "",
+    "Review full output:",
+    "  frida-rpa lint",
+    "  frida-rpa lint --json",
+  );
+  return lines.join("\n");
+}
+
+/**
+ * Full human-readable footer for `frida-rpa fix` when the final check still has non-error issues.
+ * Empty string when there is nothing to report.
+ */
+export function formatRunFixUserSummary(
+  diagnostics: LintDiagnostic[],
+  options: { unsafeFixes: boolean },
+): string {
+  if (diagnostics.length === 0) {
+    return "";
+  }
+  const title = diagnostics.length === 1 ? "Remaining issue:" : "Remaining issues:";
+  const unsafeBlock = formatUnsafeFixGuidance(diagnostics, options.unsafeFixes);
+  const out = [
+    "frida-rpa: fix",
+    "",
+    "Status: completed with warnings",
+    formatNonErrorCountsLine(diagnostics),
+    "",
+    title,
+    formatRemainingDiagnosticsSummary(diagnostics),
+  ];
+  if (unsafeBlock) {
+    out.push("", unsafeBlock);
+  } else {
+    out.push(
+      "",
+      "Next step:",
+      "  frida-rpa lint    Human-readable list",
+      "  frida-rpa lint --json  Machine-readable diagnostics (same JSON as the final `check --json` step)",
+    );
+  }
+  return out.join("\n") + "\n";
+}
+
+/**
+ * Print documented `frida_lint` rule catalog (from `frida_lint.py rules`). No FRIDA process folder required.
+ */
+export async function runLintRulesInfo(opts: BaseOpts = {}): Promise<number> {
+  const root = await resolveToolRoot();
+  const args = [path.join(root, ".cursor", "tools", "frida_lint.py"), "rules"];
+  if (opts.json) {
+    args.push("--json");
+  }
+  const result = await runPython(process.cwd(), args);
+  if (opts.json) {
+    process.stdout.write(result.stdout);
+  } else {
+    printResult("lint rules", result);
+  }
+  return result.exitCode === 0 ? 0 : 1;
 }
 
 export async function runLint(context: FridaContext, opts: BaseOpts = {}): Promise<number> {
@@ -251,14 +385,8 @@ export async function runFix(context: FridaContext, opts: FixOpts = {}): Promise
     if (!verify.stdout.endsWith("\n")) process.stdout.write("\n");
   } else if (diagnostics.length > 0) {
     process.stdout.write(
-      "frida-rpa: non-error lint issue(s) remain (use `frida-rpa lint` or `frida-rpa lint --json` to review).\n",
+      formatRunFixUserSummary(diagnostics, { unsafeFixes: opts.unsafeFixes === true }),
     );
-  }
-  if (!opts.unsafeFixes) {
-    const n = countRemainingUnsafeFixable(diagnostics);
-    if (n > 0) {
-      process.stdout.write(formatRemainingUnsafeHint(n));
-    }
   }
   return 0;
 }

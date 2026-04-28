@@ -98,3 +98,24 @@ def test_c001_separator_lines_ascii_in_rule_block() -> None:
     raw = FRIDA_LINT.read_text(encoding="utf-8")
     assert '"## --------------------------------------------------------------------"' in raw
     assert "GLOBAL VARIABLES" in raw
+
+
+def test_rules_subcommand_text() -> None:
+    r = _run_lint(["rules"], REPO_ROOT)
+    assert r.returncode == 0
+    assert "FRIDA lint rules" in r.stdout
+    assert "W004" in r.stdout
+    assert "E001" in r.stdout
+
+
+def test_rules_subcommand_json_contains_rule_list_codes() -> None:
+    r = _run_lint(["rules", "--json"], REPO_ROOT)
+    assert r.returncode == 0
+    data = json.loads(r.stdout)
+    assert isinstance(data, list)
+    codes = {item["code"] for item in data}
+    for code in ("E001", "W004", "S001", "C001", "C004"):
+        assert code in codes, f"missing {code}"
+    first = data[0]
+    assert "severity" in first and "message" in first and "description" in first
+    assert "noqa" in first

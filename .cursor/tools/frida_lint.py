@@ -10,6 +10,7 @@ Problem:
 Usage (run from project root so imports and .fridalintrc resolve correctly):
   python .cursor/tools/frida_lint.py check <file-or-glob> [<file-or-glob> ...]
   python .cursor/tools/frida_lint.py format <file-or-glob> [<file-or-glob> ...]
+  python .cursor/tools/frida_lint.py rules [--json]   # documented rule catalog (no files)
 
 Global options (before the subcommand):
   --config PATH     Use this JSON config instead of searching for .fridalintrc / .frida-lintrc
@@ -32,6 +33,10 @@ Subcommand: format
   --diff            Print diff only; do not write
   --check           Exit with status 1 if any file would change
   --safe-tabs       Preserve tab depth (avoid parser-based reindent)
+
+Subcommand: rules
+  Documented list of lint rule codes (see frida_lint_rule_catalog.py; keep in sync with run_lint).
+  --json            Machine-readable rule list
 
 Depends on frida_cognitive_ascii in this directory for W019 / format ASCII normalization.
 """
@@ -1451,7 +1456,24 @@ def main() -> int:
     format_parser.add_argument("--check", action="store_true", help="Exit 1 if would reformat")
     format_parser.add_argument("--safe-tabs", action="store_true", help="Preserve existing tab depth (avoid parser-depth reindent)")
 
+    rules_parser = sub.add_parser("rules", help="Print documented lint rule catalog (no files required)")
+    rules_parser.add_argument("--json", action="store_true", help="Emit rules as JSON")
+
     args = parser.parse_args()
+
+    if args.command == "rules":
+        # Allow `python path/to/frida_lint.py rules` when cwd is not .cursor/tools
+        _tools_dir = Path(__file__).resolve().parent
+        if str(_tools_dir) not in sys.path:
+            sys.path.insert(0, str(_tools_dir))
+        from frida_lint_rule_catalog import emit_rules_json, emit_rules_text
+
+        if args.json:
+            sys.stdout.write(emit_rules_json())
+        else:
+            sys.stdout.write(emit_rules_text())
+        return 0
+
     config = Config.load(args.config)
     if getattr(args, "select", None) and args.select:
         config.select = [s.strip() for s in args.select.split(",")]

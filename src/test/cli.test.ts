@@ -108,6 +108,31 @@ describe("parseArgs", () => {
     expect(result.userEmail).toBe("user@example.com");
   });
 
+  it("parses lint info and lint rules as documented rule catalog", () => {
+    const info = parseArgs(["lint", "info"]);
+    expect(info.command).toBe("lint");
+    expect(info.lintAction).toBe("info");
+    expect(info.workspaceArg).toBeUndefined();
+
+    const rules = parseArgs(["lint", "rules"]);
+    expect(rules.command).toBe("lint");
+    expect(rules.lintAction).toBe("info");
+  });
+
+  it("parses lint info --json", () => {
+    const result = parseArgs(["lint", "info", "--json"]);
+    expect(result.command).toBe("lint");
+    expect(result.lintAction).toBe("info");
+    expect(result.json).toBe(true);
+  });
+
+  it("parses lint with workspace path when not using info subcommand", () => {
+    const result = parseArgs(["lint", "C:/FRIDA/Local/0/0"]);
+    expect(result.command).toBe("lint");
+    expect(result.lintAction).toBeUndefined();
+    expect(result.workspaceArg).toBe("C:/FRIDA/Local/0/0");
+  });
+
   it("parses logs latest flags", () => {
     const result = parseArgs([
       "logs",

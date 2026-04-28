@@ -10,7 +10,7 @@ import { ensureWorkspaceSettings, SettingsResult } from "./cli/settings";
 import { detectFridaContext, formatContextSummary, FridaContext } from "./cli/context";
 import { renderBanner, renderPrompt, renderStatusPanel } from "./cli/ui";
 import { createMaskedPrompt, getStoredSession, handleLoginFlow, handleLogoutFlow, SessionStoreResult } from "./cli/auth";
-import { runFix, runLint, runLogs, runPull, runPush } from "./cli/fridaTools";
+import { runFix, runLint, runLintRulesInfo, runLogs, runPull, runPush } from "./cli/fridaTools";
 import { formatAgentsResultMessage, runAgentsImport } from "./cli/agents";
 
 export type CliCommand = "interactive" | "open" | "status" | "login" | "logout" | "lint" | "fix" | "push" | "sync" | "pull" | "logs" | "agents" | "help";
@@ -41,6 +41,8 @@ export interface CliOptions {
   /** When true, `fix` and `push` run `frida_lint check --fix --unsafe-fixes` (behavior-changing auto-fixes). */
   unsafeFixes: boolean;
   helpTopic?: string;
+  /** `lint info` / `lint rules` — print documented frida_lint rule catalog (no process folder required). */
+  lintAction?: "check" | "info";
 }
 
 export interface CliRunResult {
@@ -113,15 +115,25 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
     examples: ["frida-rpa logout"],
   },
   lint: {
-    purpose: "Run lint checks on Actions.txt and RunScript targets.",
+    purpose: "Run lint on Actions.txt and RunScript targets, or show documented lint rule list (lint info).",
     flags: [
+      { name: "info|rules", description: "Print all frida_lint rule codes and help (no workspace required)." },
       { name: "--process-id <n>", description: "Override inferred process id." },
       { name: "--step <n>", description: "Override inferred step index." },
-      { name: "--json", description: "Emit machine-readable JSON." },
-      { name: "[path]", description: "FRIDA process folder; default is current directory." },
+      { name: "--json", description: "For check: diagnostics JSON. For info: rule catalog JSON." },
+      { name: "[path]", description: "FRIDA process folder for `lint` check; default is current directory." },
     ],
-    notes: ["Does not modify files."],
-    examples: ["frida-rpa lint", "frida-rpa lint C:/FRIDA/TuringExpo/Local/1444065/0", "frida-rpa lint --json"],
+    notes: [
+      "Does not modify files.",
+      "`frida-rpa lint info` and `frida-rpa lint rules` are aliases; they run `frida_lint.py rules` from the extension install.",
+    ],
+    examples: [
+      "frida-rpa lint",
+      "frida-rpa lint C:/FRIDA/TuringExpo/Local/1444065/0",
+      "frida-rpa lint --json",
+      "frida-rpa lint info",
+      "frida-rpa lint info --json",
+    ],
   },
   fix: {
     purpose: "Run format + safe fixes + final lint verification.",
@@ -382,6 +394,13 @@ export function parseArgs(argv: string[]): CliOptions {
         options.logsAction = token.toLowerCase() as LogsAction;
         continue;
       }
+      if (options.command === "lint" && !options.lintAction) {
+        const sub = token.toLowerCase();
+        if (sub === "info" || sub === "rules") {
+          options.lintAction = "info";
+          continue;
+        }
+      }
       if (!options.workspaceArg) {
         options.workspaceArg = token;
         continue;
@@ -588,7 +607,12 @@ async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise
     case "status": return runStatus(options);
     case "login": return handleLoginFlow(hooks?.question, hooks?.maskedQuestion);
     case "logout": return handleLogoutFlow();
-    case "lint": return runLint(buildContext(options), { json: options.json });
+    case "lint": {
+      if (options.lintAction === "info") {
+        return runLintRulesInfo({ json: options.json });
+      }
+      return runLint(buildContext(options), { json: options.json });
+    }
     case "fix": return runFix(buildContext(options), { json: options.json, unsafeFixes: options.unsafeFixes });
     case "push":
     case "sync": return runPush(buildContext(options), { json: options.json, dryRun: options.dryRun, unsafeFixes: options.unsafeFixes });
