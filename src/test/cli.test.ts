@@ -14,7 +14,7 @@ import {
   resolveExtensionDevPath,
   shouldUseDevHost,
 } from "../cli";
-import { createMaskedPrompt, handleLoginFlow, handleLogoutFlow } from "../cli/auth";
+import { createMaskedPrompt, getStoredSession, handleLoginFlow, handleLogoutFlow } from "../cli/auth";
 import { renderStatusPanel } from "../cli/ui";
 import { detectEditor } from "../cli/launch";
 import { ensureWorkspaceSettings, mergeFridaPatterns } from "../cli/settings";
@@ -321,14 +321,72 @@ describe("handleLoginFlow", () => {
   });
 
   it("stores password after verification succeeds", async () => {
-    const question = vi.fn(async () => "user@example.com");
+    const question = vi.fn(async () => "User@Example.com");
     const maskedQuestion = vi.fn(async () => "top-secret");
     const verifier = vi.fn(async () => {});
     const savePassword = vi.fn(async () => {});
+    const saveSession = vi.fn(async () => {});
+    const loadPrevSession = vi.fn(async () => null);
+    const deletePreviousCredential = vi.fn(async () => {});
 
-    await expect(handleLoginFlow(question, maskedQuestion, verifier, savePassword)).resolves.toBe(0);
+    await expect(
+      handleLoginFlow(
+        question,
+        maskedQuestion,
+        verifier,
+        savePassword,
+        saveSession,
+        loadPrevSession,
+        deletePreviousCredential,
+      ),
+    ).resolves.toBe(0);
     expect(verifier).toHaveBeenCalledWith("user@example.com", "top-secret");
+    expect(deletePreviousCredential).not.toHaveBeenCalled();
     expect(savePassword).toHaveBeenCalledWith("user@example.com", "top-secret");
+    expect(saveSession).toHaveBeenCalledWith("user@example.com");
+  });
+
+  it("deletes prior account credential before saving when switching email", async () => {
+    const order: string[] = [];
+    const question = vi.fn(async () => "new@example.com");
+    const maskedQuestion = vi.fn(async () => "pw");
+    const verifier = vi.fn(async () => {});
+    const savePassword = vi.fn(async () => {
+      order.push("savePassword");
+    });
+    const saveSession = vi.fn(async () => {});
+    const loadPrevSession = vi.fn(async () => ({
+      email: "old@example.com",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastVerifiedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const deletePreviousCredential = vi.fn(async () => {
+      order.push("deletePrevious");
+    });
+
+    await handleLoginFlow(question, maskedQuestion, verifier, savePassword, saveSession, loadPrevSession, deletePreviousCredential);
+
+    expect(deletePreviousCredential).toHaveBeenCalledWith("old@example.com");
+    expect(order).toEqual(["deletePrevious", "savePassword"]);
+    expect(savePassword).toHaveBeenCalledWith("new@example.com", "pw");
+  });
+
+  it("does not delete prior credential when email is unchanged after normalization", async () => {
+    const question = vi.fn(async () => "USER@example.com");
+    const maskedQuestion = vi.fn(async () => "pw");
+    const verifier = vi.fn(async () => {});
+    const savePassword = vi.fn(async () => {});
+    const saveSession = vi.fn(async () => {});
+    const loadPrevSession = vi.fn(async () => ({
+      email: "user@example.com",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastVerifiedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const deletePreviousCredential = vi.fn(async () => {});
+
+    await handleLoginFlow(question, maskedQuestion, verifier, savePassword, saveSession, loadPrevSession, deletePreviousCredential);
+
+    expect(deletePreviousCredential).not.toHaveBeenCalled();
   });
 
   it("masks TTY password input", async () => {
@@ -363,6 +421,17 @@ describe("handleLoginFlow", () => {
   });
 });
 
+describe("getStoredSession", () => {
+  it("does not report signed in when secure credential is missing", async () => {
+    await expect(getStoredSession(async () => false, async () => ({
+      email: "user@example.com",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastVerifiedAt: "2026-01-01T00:00:00.000Z",
+      credentialStore: "windows-dpapi",
+    }))).resolves.toBeNull();
+  });
+});
+
 describe("handleLogoutFlow", () => {
   it("succeeds when no session exists", async () => {
     const deletePassword = vi.fn(async () => {});
@@ -384,6 +453,20 @@ describe("handleLogoutFlow", () => {
     const clearSession = vi.fn(async () => {});
     await expect(handleLogoutFlow(deletePassword, loadSession, clearSession)).resolves.toBe(0);
     expect(deletePassword).toHaveBeenCalledWith("user@example.com");
+    expect(clearSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("still clears session when credential deletion fails", async () => {
+    const deletePassword = vi.fn(async () => {
+      throw new Error("delete failed");
+    });
+    const loadSession = vi.fn(async () => ({
+      email: "user@example.com",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastVerifiedAt: "2026-01-01T00:00:00.000Z",
+    }));
+    const clearSession = vi.fn(async () => {});
+    await expect(handleLogoutFlow(deletePassword, loadSession, clearSession)).resolves.toBe(0);
     expect(clearSession).toHaveBeenCalledTimes(1);
   });
 });

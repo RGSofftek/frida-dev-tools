@@ -5,7 +5,12 @@ import * as path from "node:path";
 import type { Readable } from "node:stream";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { deleteCognitivePassword, saveCognitivePassword } from "./credentialStore";
+import {
+  deleteCognitivePassword,
+  hasCognitivePassword,
+  normalizeCognitiveEmail,
+  saveCognitivePassword,
+} from "./credentialStore";
 
 type PromptQuestion = (prompt: string) => Promise<string>;
 type MaskedPromptInput = Readable & {
@@ -20,6 +25,8 @@ type ReadlineController = {
 type LoginVerifier = (email: string, password: string) => Promise<void>;
 type PasswordSaver = (email: string, password: string) => Promise<void>;
 type PasswordDeleter = (email: string) => Promise<void>;
+type PasswordChecker = (email: string) => Promise<boolean>;
+type SessionWriter = (email: string) => Promise<void>;
 type SessionReader = () => Promise<SessionStoreResult | null>;
 type SessionClearer = () => Promise<void>;
 
@@ -48,8 +55,12 @@ async function readSession(): Promise<SessionStoreResult | null> {
       return null;
     }
     const nowIso = new Date().toISOString();
+    const email = normalizeCognitiveEmail(parsed.email);
+    if (!email) {
+      return null;
+    }
     return {
-      email: parsed.email,
+      email,
       createdAt: parsed.createdAt ?? nowIso,
       lastVerifiedAt: parsed.lastVerifiedAt ?? parsed.createdAt ?? parsed.expiresAt ?? nowIso,
       credentialStore: parsed.credentialStore,
@@ -129,8 +140,9 @@ export async function verifyCognitiveLogin(email: string, password: string): Pro
   }
   const url = new URL("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword");
   url.searchParams.set("key", COGNITIVE_FIREBASE_API_KEY);
+  const canonicalEmail = normalizeCognitiveEmail(email);
   const response = await postJson(url, {
-    email,
+    email: canonicalEmail,
     password,
     returnSecureToken: true,
   }).catch((error: unknown) => {
@@ -148,8 +160,18 @@ export async function verifyCognitiveLogin(email: string, password: string): Pro
   }
 }
 
-export async function getStoredSession(): Promise<SessionStoreResult | null> {
-  return readSession();
+export async function getStoredSession(
+  passwordExists: PasswordChecker = hasCognitivePassword,
+  loadSession: SessionReader = readSession,
+): Promise<SessionStoreResult | null> {
+  const session = await loadSession();
+  if (!session) {
+    return null;
+  }
+  if (session.credentialStore && !(await passwordExists(session.email))) {
+    return null;
+  }
+  return session;
 }
 
 export async function ensureLoggedIn(): Promise<SessionStoreResult> {
@@ -245,21 +267,30 @@ export async function handleLoginFlow(
   maskedQuestion?: PromptQuestion,
   verifier: LoginVerifier = verifyCognitiveLogin,
   savePassword: PasswordSaver = saveCognitivePassword,
+  saveSession: SessionWriter = writeSession,
+  loadPrevSession: SessionReader = readSession,
+  deletePreviousCredential: PasswordDeleter = deleteCognitivePassword,
 ): Promise<number> {
   const rl = question ? null : createInterface({ input, output });
   const ask = question ?? rl!.question.bind(rl);
   try {
-    const email = (await ask("Cognitive email: ")).trim();
+    const rawEmail = await ask("Cognitive email: ");
     rl?.close();
     const askMasked = maskedQuestion ?? (rl ? createMaskedPrompt() : ask);
     const password = await askMasked("Cognitive password: ");
-    if (!email) {
+    const normalizedEmail = normalizeCognitiveEmail(rawEmail);
+    if (!normalizedEmail) {
       throw new Error("Email is required.");
     }
-    await verifier(email, password);
-    await savePassword(email, password);
-    await writeSession(email);
-    process.stdout.write(`Saved local credentials for ${email}. They remain available until logout.\n`);
+    await verifier(normalizedEmail, password);
+    const previous = await loadPrevSession();
+    const prevEmail = previous?.email ? normalizeCognitiveEmail(previous.email) : "";
+    if (prevEmail && prevEmail !== normalizedEmail) {
+      await deletePreviousCredential(previous!.email);
+    }
+    await savePassword(normalizedEmail, password);
+    await saveSession(normalizedEmail);
+    process.stdout.write(`Saved local credentials for ${normalizedEmail}. They remain available until logout.\n`);
     return 0;
   } finally {
     rl?.close();
@@ -272,10 +303,17 @@ export async function handleLogoutFlow(
   clearSession: SessionClearer = async () => fs.rm(sessionFile(), { force: true }),
 ): Promise<number> {
   const session = await loadSession();
-  if (session?.email) {
-    await deletePassword(session.email);
+  try {
+    if (session?.email) {
+      try {
+        await deletePassword(session.email);
+      } catch {
+        // Still clear session marker so stale metadata cannot survive a partial logout.
+      }
+    }
+  } finally {
+    await clearSession();
   }
-  await clearSession();
   process.stdout.write("Cleared local FRIDA RPA credentials.\n");
   return 0;
 }

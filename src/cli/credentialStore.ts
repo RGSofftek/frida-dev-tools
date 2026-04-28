@@ -13,8 +13,13 @@ function credentialDir(): string {
   return path.join(sessionDir(), "credentials");
 }
 
-function normalizeAccountKey(email: string): string {
+/** Canonical identity key for Cognitive email (trim + lowercase). */
+export function normalizeCognitiveEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function normalizeAccountKey(email: string): string {
+  return normalizeCognitiveEmail(email);
 }
 
 function credentialPath(email: string): string {
@@ -97,6 +102,22 @@ export async function getCognitivePassword(email: string): Promise<string | null
     payload,
   );
   return decrypted || null;
+}
+
+export async function hasCognitivePassword(email: string): Promise<boolean> {
+  if (process.platform !== "win32") {
+    return false;
+  }
+  const normalized = normalizeAccountKey(email);
+  if (!normalized) {
+    return false;
+  }
+  try {
+    await fs.access(credentialPath(normalized));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function deleteCognitivePassword(email: string): Promise<void> {

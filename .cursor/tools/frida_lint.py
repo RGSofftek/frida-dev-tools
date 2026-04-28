@@ -177,6 +177,11 @@ class Diagnostic:
     fix_replacement: list[str] | None = None  # for --fix
 
 
+def _leading_indent_prefix(line: str) -> str:
+    """Whitespace (tabs/spaces) before the first visible character on a logical FRIDA line."""
+    return line[: len(line) - len(line.lstrip(" \t"))]
+
+
 # -----------------------------------------------------------------------------
 # Noqa parsing
 # -----------------------------------------------------------------------------
@@ -578,7 +583,7 @@ def rule_e001_continue(records: list[LineRecord], ctx: ParseContext) -> list[Dia
             out.append(Diagnostic(
                 file="", line=r.line_no, col=1, code="E001",
                 message="'continue' does not exist in FRIDA; use flag variable + conditional instead",
-                severity="error", fixable=True, fix_kind="unsafe",
+                severity="error",
             ))
     return out
 
@@ -621,7 +626,7 @@ def rule_e003_compound_while(records: list[LineRecord], ctx: ParseContext) -> li
             out.append(Diagnostic(
                 file="", line=r.line_no, col=1, code="E003",
                 message="Compound operators (-AND/-OR/-NOT/-XOR) not allowed in while; use if+break inside loop",
-                severity="error", fixable=True, fix_kind="unsafe",
+                severity="error",
             ))
     return out
 
@@ -695,8 +700,7 @@ def rule_e006_throw(records: list[LineRecord], ctx: ParseContext) -> list[Diagno
             out.append(Diagnostic(
                 file="", line=r.line_no, col=1, code="E006",
                 message="Throw does not exist in FRIDA",
-                severity="error", fixable=True, fix_kind="safe",
-                fix_replacement=[f"## FIXME: Throw does not exist in FRIDA\n## {r.stripped}"],
+                severity="error",
             ))
     return out
 
@@ -802,14 +806,19 @@ def rule_w003_undocumented_global(records: list[LineRecord], ctx: ParseContext, 
 def rule_w004_systemnotify(records: list[LineRecord], ctx: ParseContext) -> list[Diagnostic]:
     out: list[Diagnostic] = []
     for r in records:
+        if r.line_type == LineType.comment:
+            continue
         if re.search(r"systemnotify|SystemNotify", r.stripped, re.IGNORECASE):
             if "W004" in r.noqa_codes or "ALL" in r.noqa_codes:
                 continue
+            indent = _leading_indent_prefix(r.stripped)
+            body = r.stripped.strip()
+            disabled = f"{indent}## {body} ## noqa: W004"
             out.append(Diagnostic(
                 file="", line=r.line_no, col=1, code="W004",
                 message="systemnotify/SystemNotify used (avoid unless explicitly requested)",
                 severity="warning", fixable=True, fix_kind="unsafe",
-                fix_replacement=[f"## LINT-DISABLED: {r.stripped}"],
+                fix_replacement=[disabled],
             ))
     return out
 
@@ -1044,7 +1053,7 @@ def rule_w018_for_zero_times(records: list[LineRecord], ctx: ParseContext) -> li
                     out.append(Diagnostic(
                         file="", line=r.line_no, col=1, code="W018",
                         message="for 0 times - dead code, loop body never executes",
-                        severity="warning", fixable=True, fix_kind="unsafe",
+                        severity="warning",
                     ))
     return out
 
@@ -1115,11 +1124,12 @@ def rule_s002_comment_space(records: list[LineRecord], ctx: ParseContext) -> lis
         if re.match(r"^##[A-Za-z0-9<]", content):
             fixed = re.sub(r"^(##)([A-Za-z0-9<])", r"\1 \2", content, count=1)
             if "S002" not in r.noqa_codes and "ALL" not in r.noqa_codes:
+                indent = _leading_indent_prefix(r.stripped)
                 out.append(Diagnostic(
                     file="", line=r.line_no, col=1, code="S002",
                     message="Comment missing space after ##",
                     severity="style", fixable=True, fix_kind="safe",
-                    fix_replacement=[fixed],
+                    fix_replacement=[indent + fixed],
                 ))
     return out
 
@@ -1133,7 +1143,7 @@ def rule_s003_trailing_whitespace(records: list[LineRecord], ctx: ParseContext) 
                     file="", line=r.line_no, col=1, code="S003",
                     message="Trailing whitespace",
                     severity="style", fixable=True, fix_kind="safe",
-                    fix_replacement=[r.stripped],
+                    fix_replacement=[r.stripped.rstrip()],
                 ))
     return out
 
@@ -1151,13 +1161,13 @@ def rule_c001_missing_globals_doc(records: list[LineRecord], ctx: ParseContext) 
     if header_present:
         return []
     block = [
-        "## ─────────────────────────────────────────────────────────────────────────────",
+        "## --------------------------------------------------------------------",
         "## GLOBAL VARIABLES (define in Frida UI before execution)",
-        "## ─────────────────────────────────────────────────────────────────────────────",
+        "## --------------------------------------------------------------------",
     ]
     for g in sorted(ctx.globals_used):
         block.append(f"## <<{g}>> - (define in UI)")
-    block.append("## ─────────────────────────────────────────────────────────────────────────────")
+    block.append("## --------------------------------------------------------------------")
     insert_line = 1
     for i, r in enumerate(records):
         if r.stripped.strip().startswith("GetHome") or r.stripped.strip().startswith("DefineVariable") or r.stripped.strip().startswith("Excel ") or r.stripped.strip().startswith("#%region"):
@@ -1187,11 +1197,12 @@ def rule_c004_checkpoint_before_start_transaction(records: list[LineRecord], ctx
                 break
         if not prev_comment:
             if "C004" not in r.noqa_codes and "ALL" not in r.noqa_codes:
+                indent = _leading_indent_prefix(r.stripped)
                 out.append(Diagnostic(
                     file="", line=r.line_no, col=1, code="C004",
                     message="No checkpoint comment before SAP StartTransaction",
                     severity="convention", fixable=True, fix_kind="safe",
-                    fix_replacement=[f"## Start transaction {tcode}"],
+                    fix_replacement=[f"{indent}## Start transaction {tcode}"],
                 ))
     return out
 
@@ -1284,6 +1295,7 @@ def format_file(records: list[LineRecord], config: Config, preserve_tab_depth: b
             # Canonical indentation is derived from control-flow depth.
             line_indent = indent_str * r.depth
             assembled = line_indent + content
+        assembled = assembled.rstrip()
         if "W019" not in r.noqa_codes and "ALL" not in r.noqa_codes:
             assembled = sanitize_for_cognitive_upload(assembled)
         out.append(assembled)
@@ -1317,18 +1329,6 @@ def apply_fixes(lines: list[str], records: list[LineRecord], diagnostics: list[D
         if d.code == "C001":
             payload = [ln.rstrip("\n") + "\n" for ln in d.fix_replacement]
             ops.append((max(0, d.line - 1), "insert_before", payload, d.code))
-            continue
-
-        # E006: might expand into two lines.
-        if d.code == "E006":
-            rep = d.fix_replacement[0]
-            if "\n" in rep:
-                a, b = rep.split("\n", 1)
-                payload = [a + "\n", b + "\n"]
-                ops.append((line_idx, "replace_two", payload, d.code))
-            else:
-                payload = [rep.rstrip("\n") + "\n"]
-                ops.append((line_idx, "replace_one", payload, d.code))
             continue
 
         # C004: insert checkpoint comment immediately before StartTransaction line.
