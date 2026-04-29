@@ -17,7 +17,7 @@ This doc is recon for a future **`cognitive`-style CLI** (not shipped here). Bel
 | **Auth (email + password)** | `signInWithPassword` with **automation-1713b** web API key, then `auth-generateToken` + cognitive `verifyCustomToken` to obtain the **cognitive** `id_token` used by Cloud Functions; **refresh** via `securetoken.googleapis.com` with **cognitive** key + cognitive `refresh_token`. See **Headless email + password** and **API calls after auth**. |
 | **List apps and suites** | `GET apps-getAdminAppsAndSuites?email=...` with cognitive `Authorization` token; response shape documented in **Supplement**. |
 | **List / link processes** | `GET tests-getMyProcesses?mail=...` with same token; `Apps` / `Suites` string arrays documented in **Supplement**. |
-| **Push / pull / list process files** | `azure-createTxtFile`, `azure-getTxtFile`, `azure-listFilesAndDirectories` under `Processes/{id}/Steps/{n}`; prior art: `.cursor/tools/sync_actions_to_cognitive.py` (push + list + optional AppUsage) and `.cursor/tools/fetch_actions_from_cognitive.py` (pull `Actions.txt`). Headers today are mainly `Origin` + JSON body; see **File sync** and Azure notes. |
+| **Push / pull / list process files** | `azure-createTxtFile`, `azure-getTxtFile`, `azure-listFilesAndDirectories` under `Processes/{id}/Steps/{n}`; prior art: `resources/cli-tools/sync_actions_to_cognitive.py` (push + list + optional AppUsage) and `resources/cli-tools/fetch_actions_from_cognitive.py` (pull `Actions.txt`). Headers today are mainly `Origin` + JSON body; see **File sync** and Azure notes. |
 | **Public Firebase keys** | All `AIzaSy...` client keys from `main.c532a256.chunk.js` and how they are used are in **Public Firebase web API keys**. |
 
 ### Likely next (documented shape; confirm with one live call)
@@ -258,7 +258,7 @@ Observed sequence for a new suite under an app:
 
 ### File sync (already implemented locally)
 
-The project script `.cursor/tools/sync_actions_to_cognitive.py` documents and uses:
+The project script `resources/cli-tools/sync_actions_to_cognitive.py` documents and uses:
 
 - **POST** `https://us-central1-cognitive-testing.cloudfunctions.net/azure-createTxtFile`  
 - **POST** `https://us-central1-cognitive-testing.cloudfunctions.net/azure-listFilesAndDirectories`  
@@ -406,5 +406,5 @@ Plus HTTP **`apps-createApp`** may still be required for parity with the UI. Tre
 ## References
 
 - Web app: [https://cognitivetesting.online/](https://cognitivetesting.online/)  
-- Existing local uploader: `.cursor/tools/sync_actions_to_cognitive.py`  
+- Existing local uploader: `resources/cli-tools/sync_actions_to_cognitive.py`  
 - Firebase Auth REST (for design comparison): [Google Identity Toolkit REST API](https://cloud.google.com/identity-platform/docs/reference/rest)

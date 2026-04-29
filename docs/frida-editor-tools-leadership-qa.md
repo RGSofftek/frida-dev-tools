@@ -68,7 +68,7 @@ A Language Server Protocol (LSP) server reads `resources/frida.completion.json` 
 
 ### Where do completion suggestions come from?
 
-From local FRIDA documentation in `.cursor/docs`, converted into a normalized completion index.
+From local FRIDA documentation in `resources/frida-docs`, converted into a normalized completion index.
 
 ### How is that index built?
 
@@ -82,7 +82,7 @@ Documentation updates can flow directly into editor completions without rewritin
 
 ### How does linting work?
 
-The Python linter (`.cursor/tools/frida_lint.py`) parses FRIDA scripts line-by-line, classifies structure (instructions, comments, block openings/closures, regions), and emits diagnostics by rule code.
+The Python linter (`resources/cli-tools/frida_lint.py`) parses FRIDA scripts line-by-line, classifies structure (instructions, comments, block openings/closures, regions), and emits diagnostics by rule code.
 
 ### What does it validate?
 

@@ -7,6 +7,7 @@ import {
   formatDiagnosticLocation,
   formatNonErrorCountsLine,
   formatRemainingDiagnosticsSummary,
+  formatPostFixCountsLine,
   formatRunFixUserSummary,
   formatUnsafeFixGuidance,
   runFix,
@@ -45,17 +46,17 @@ describe("formatRunFix user-facing helpers", () => {
     expect(line).toMatch(/1 convention/);
   });
 
-  it("formatRemainingDiagnosticsSummary lists each issue on two lines", () => {
+  it("formatRemainingDiagnosticsSummary lists each issue on two lines with severity", () => {
     const out = formatRemainingDiagnosticsSummary([w004Unsafe]);
-    expect(out).toContain("W004  Actions.txt:6");
+    expect(out).toContain("W004  Actions.txt:6  warning");
     expect(out).toContain("systemnotify");
   });
 
   it("formatUnsafeFixGuidance returns W004 copy when unsafe fixes were skipped and W004 is present", () => {
     const g = formatUnsafeFixGuidance([w004Unsafe], false);
-    expect(g).toContain("W004");
+    expect(g).toContain("W004 is unsafe");
     expect(g).toContain("frida-rpa fix --unsafe-fixes");
-    expect(g).toContain("## noqa: <CODE>");
+    expect(g).toContain("## noqa: W004");
   });
 
   it("formatUnsafeFixGuidance is empty when --unsafe-fixes was used", () => {
@@ -68,6 +69,7 @@ describe("formatRunFix user-facing helpers", () => {
     expect(s).toMatch(/Status: completed with warnings/);
     expect(s).toMatch(/W004/);
     expect(s).toMatch(/Why it was not changed automatically/);
+    expect(s).toContain("## noqa: W004");
     expect(s).not.toMatch(/Next step:/);
   });
 
@@ -89,6 +91,11 @@ describe("formatRunFix user-facing helpers", () => {
     expect(s).toContain("Remaining issues:");
     expect(s).toContain("W001");
     expect(s).toContain("W002");
+    expect(s).toContain("## noqa: <CODE>");
+  });
+
+  it("formatPostFixCountsLine includes safe-fixes prefix", () => {
+    expect(formatPostFixCountsLine([w004Unsafe])).toMatch(/Safe fixes were applied where possible/);
   });
 });
 
@@ -165,8 +172,11 @@ describe("runFix (mocked python)", () => {
       const combined = writeSpy.mock.calls.map((c) => c[0] as string).join("");
       expect(combined).toContain("frida-rpa: fix");
       expect(combined).toContain("Status: completed with warnings");
+      expect((combined.match(/Status: completed with warnings/g) || []).length).toBe(1);
+      expect(combined).toContain("Safe fixes were applied where possible");
       expect(combined).toContain("W004");
       expect(combined).toContain("Why it was not changed automatically");
+      expect(combined).not.toContain("linter out");
     } finally {
       writeSpy.mockRestore();
     }
@@ -202,6 +212,38 @@ describe("runFix (mocked python)", () => {
       expect(combined).toContain("W004");
       expect(combined).not.toContain("frida-rpa: fix");
       expect(combined).not.toContain("Status: completed with warnings");
+    } finally {
+      writeSpy.mockRestore();
+    }
+  });
+
+  it("returns 0 and prints clean when verify JSON has no diagnostics", async () => {
+    const fridaCwd = path.join(os.tmpdir(), "frida-clean");
+    let n = 0;
+    mockSpawn.mockImplementation(() => {
+      n += 1;
+      const { child } = makeMockChild();
+      if (n === 1 || n === 3) {
+        emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+        return child;
+      }
+      if (n === 2) {
+        emitProcessClose(child, { stdout: "should not be shown\n", stderr: "", exit: 0 });
+        return child;
+      }
+      if (n === 4) {
+        emitProcessClose(child, { stdout: "[]", stderr: "", exit: 0 });
+        return child;
+      }
+      throw new Error(`unexpected n=${n}`);
+    });
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    try {
+      const code = await runFix(baseContext(fridaCwd), {});
+      expect(code).toBe(0);
+      const combined = writeSpy.mock.calls.map((c) => c[0] as string).join("");
+      expect(combined).toContain("Status: clean");
+      expect(combined).not.toContain("should not be shown");
     } finally {
       writeSpy.mockRestore();
     }
@@ -243,6 +285,7 @@ describe("runFix (mocked python)", () => {
       expect(code).toBe(1);
       const combined = writeSpy.mock.calls.map((c) => c[0] as string).join("");
       expect(combined).toContain("E001");
+      expect(combined).toContain("err step");
       expect(combined).not.toContain("Status: completed with warnings");
     } finally {
       writeSpy.mockRestore();

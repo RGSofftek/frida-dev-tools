@@ -76,13 +76,13 @@ You can also define explicit language associations in your workspace:
 The completion index is generated from docs in this repo:
 
 ```bash
-python ./scripts/build_completion_index.py --docs ./.cursor/docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json
+python ./scripts/build_completion_index.py --docs ./resources/frida-docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json
 ```
 
 Optional enrichment with an external `readers.json`:
 
 ```bash
-python ./scripts/build_completion_index.py --docs ./.cursor/docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json --readers C:/path/to/readers.json
+python ./scripts/build_completion_index.py --docs ./resources/frida-docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json --readers C:/path/to/readers.json
 ```
 
 ## Tests
@@ -180,7 +180,8 @@ Behavior:
 - `--init` is reserved for a future release and currently has no behavior.
 - Running `frida-rpa` with no command starts an interactive shell (`frida-rpa >`).
 - In the interactive shell, use `exit` or `quit` to return to your terminal.
-- `login` stores a local CLI session marker, but current `pull`, `push`, and `sync` commands run through `.cursor/tools` wrappers and do not require that local login session.
+- `login` stores a local CLI session marker, but current `pull`, `push`, and `sync` commands run through `resources/cli-tools` (invoked from the `frida-rpa` binary) and do not require that local login session.
+- `push` includes a freshness guard: it verifies the remote file has not changed since the last `pull` or `push` before uploading, preventing accidental overwrites. If the remote has changed, it blocks and suggests manual review.
 
 Run focused TypeScript tests (including CLI tests):
 

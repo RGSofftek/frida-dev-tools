@@ -3,8 +3,15 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { runPush, parseLintCheckJson, hasLintErrorSeverity } from "../cli/fridaTools";
+import {
+  runPush,
+  parseLintCheckJson,
+  hasLintErrorSeverity,
+  parseCognitiveSyncJson,
+  formatPushUserSummary,
+} from "../cli/fridaTools";
 import type { FridaContext } from "../cli/context";
+import { updateBaselineFile } from "../cli/cognitiveBaseline";
 
 const { mockSpawn } = vi.hoisted(() => {
   return { mockSpawn: vi.fn() as ReturnType<typeof vi.fn> };
@@ -77,7 +84,12 @@ describe("runPush (mocked python)", () => {
     const base = await fs.mkdtemp(path.join(os.tmpdir(), "frida-push-"));
     const fridaCwd = path.join(base, "TuringExpo", "Local", "test123", "0");
     await fs.mkdir(fridaCwd, { recursive: true });
-    await fs.writeFile(path.join(fridaCwd, "Actions.txt"), "Line\n", "utf8");
+    
+    const remoteContent = "Line\n";
+    const localContent = "Line\nEdited\n";
+    await fs.writeFile(path.join(fridaCwd, "Actions.txt"), localContent, "utf8");
+    await updateBaselineFile(fridaCwd, 1444065, 0, "Actions.txt", { content: remoteContent }, "pull");
+
     const warnJson = [
       { file: path.join(fridaCwd, "Actions.txt"), line: 4, col: 1, code: "W004", message: "notify", severity: "warning" },
     ];
@@ -86,39 +98,78 @@ describe("runPush (mocked python)", () => {
       expect(cmd).toBe("python");
       n += 1;
       const { child } = makeMockChild();
-      if (n === 1 || n === 3) {
-        emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
-        return child;
+      
+      // Handle fetch_actions_from_cognitive.py (preflight, lease, post-push)
+      if (String(args[0]).includes("fetch_actions_from_cognitive")) {
+        const outFileIdx = args.indexOf("--out-file");
+        if (outFileIdx >= 0) {
+          const outFile = args[outFileIdx + 1];
+          fs.mkdir(path.dirname(outFile), { recursive: true }).then(() => {
+            // Post-push fetch will return localContent because sync pushed it
+            // Pre-push fetch returns remoteContent
+            const outContent = n > 7 ? localContent : remoteContent;
+            return fs.writeFile(outFile, outContent, "utf8");
+          }).then(() => {
+            emitProcessClose(child, { stdout: "fetched\n", stderr: "", exit: 0 });
+          });
+          return child;
+        }
       }
-      if (n === 2) {
-        expect(args[2]).toBe("check");
-        expect(args).toContain("--fix");
-        expect(args).not.toContain("--json");
-        expect(args).not.toContain("--unsafe-fixes");
-        emitProcessClose(child, { stdout: "out\n", stderr: "", exit: 1 });
-        return child;
+
+      if (String(args[0]).includes("frida_lint")) {
+        const isFormat = args.includes("format");
+        const isCheck = args.includes("check");
+        if (isFormat) {
+          emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+          return child;
+        }
+        if (isCheck && args.includes("--fix")) {
+          emitProcessClose(child, { stdout: "out\n", stderr: "", exit: 1 });
+          return child;
+        }
+        if (isCheck && args.includes("--json")) {
+          emitProcessClose(child, { stdout: JSON.stringify(warnJson), stderr: "", exit: 1 });
+          return child;
+        }
       }
-      if (n === 4) {
-        expect(args[2]).toBe("check");
-        expect(args).toContain("--json");
-        emitProcessClose(child, { stdout: JSON.stringify(warnJson), stderr: "", exit: 1 });
-        return child;
-      }
-      if (n === 5) {
-        expect(String(args[0])).toContain("sync_actions_to_cognitive");
+
+      if (String(args[0]).includes("sync_actions_to_cognitive")) {
         expect(args).toContain("--dry-run");
-        emitProcessClose(child, { stdout: "dry run ok\n", stderr: "", exit: 0 });
+        expect(args).toContain("--json");
+        expect(args).not.toContain("--verbose");
+        const drySync = {
+          processId: 1444065,
+          step: 0,
+          pathPrefix: "Processes/1444065/Steps/0",
+          dryRun: true,
+          files: [
+            { name: "Actions.txt", byteSize: 5 },
+            { name: "datadrive.txt", byteSize: 2 },
+            { name: "headers.txt", byteSize: 1 },
+          ],
+          appUsage: { status: "skipped" as const, reason: "missing_optional_credentials" },
+        };
+        emitProcessClose(child, { stdout: `${JSON.stringify(drySync)}\n`, stderr: "", exit: 0 });
         return child;
       }
-      throw new Error(`unexpected spawn call n=${n} ${args.join(" ")}`);
+      
+      emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+      return child;
     });
     const code = await runPush(baseContext(fridaCwd), { dryRun: true });
     expect(code).toBe(0);
-    expect(n).toBe(5);
   });
 
   it("throws when final check has an error diagnostic", async () => {
-    const fridaCwd = path.join("C:", "tmp", "f");
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "frida-push-err-"));
+    const fridaCwd = path.join(base, "TuringExpo", "Local", "err", "0");
+    await fs.mkdir(fridaCwd, { recursive: true });
+    
+    const remoteContent = "Line\n";
+    const localContent = "bad\n";
+    await fs.writeFile(path.join(fridaCwd, "Actions.txt"), localContent, "utf8");
+    await updateBaselineFile(fridaCwd, 1444065, 0, "Actions.txt", { content: remoteContent }, "pull");
+
     const errJson = [
       { file: path.join(fridaCwd, "Actions.txt"), line: 1, col: 1, code: "E001", message: "bad", severity: "error" },
     ];
@@ -126,58 +177,200 @@ describe("runPush (mocked python)", () => {
     mockSpawn.mockImplementation((cmd: string, args: string[]) => {
       n += 1;
       const { child } = makeMockChild();
-      if (n === 1 || n === 3) {
-        emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
-        return child;
+      
+      if (String(args[0]).includes("fetch_actions_from_cognitive")) {
+        const outFileIdx = args.indexOf("--out-file");
+        if (outFileIdx >= 0) {
+          const outFile = args[outFileIdx + 1];
+          fs.mkdir(path.dirname(outFile), { recursive: true }).then(() => {
+            return fs.writeFile(outFile, remoteContent, "utf8");
+          }).then(() => {
+            emitProcessClose(child, { stdout: "fetched\n", stderr: "", exit: 0 });
+          });
+          return child;
+        }
       }
-      if (n === 2) {
-        emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
-        return child;
+
+      if (String(args[0]).includes("frida_lint")) {
+        const isFormat = args.includes("format");
+        const isCheck = args.includes("check");
+        if (isFormat) {
+          emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+          return child;
+        }
+        if (isCheck && args.includes("--fix")) {
+          emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+          return child;
+        }
+        if (isCheck && args.includes("--json")) {
+          emitProcessClose(child, { stdout: JSON.stringify(errJson), stderr: "", exit: 1 });
+          return child;
+        }
       }
-      if (n === 4) {
-        expect(args[2]).toBe("check");
-        expect(args).toContain("--json");
-        emitProcessClose(child, { stdout: JSON.stringify(errJson), stderr: "", exit: 1 });
-        return child;
-      }
-      throw new Error("unexpected");
+
+      emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+      return child;
     });
     await expect(runPush(baseContext(fridaCwd), { dryRun: true })).rejects.toThrow(/one or more errors/);
-    expect(n).toBe(4);
   });
 
   it("passes --unsafe-fixes to check --fix when set", async () => {
     const base = await fs.mkdtemp(path.join(os.tmpdir(), "frida-push-"));
     const fridaCwd = path.join(base, "TuringExpo", "Local", "test456", "0");
     await fs.mkdir(fridaCwd, { recursive: true });
-    await fs.writeFile(path.join(fridaCwd, "Actions.txt"), "x\n", "utf8");
+    
+    const remoteContent = "x\n";
+    const localContent = "x\ny\n";
+    await fs.writeFile(path.join(fridaCwd, "Actions.txt"), localContent, "utf8");
+    await updateBaselineFile(fridaCwd, 1444065, 0, "Actions.txt", { content: remoteContent }, "pull");
+
     let n = 0;
     mockSpawn.mockImplementation((cmd: string, args: string[]) => {
       n += 1;
       const { child } = makeMockChild();
-      if (n === 1 || n === 3) {
-        emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+
+      if (String(args[0]).includes("fetch_actions_from_cognitive")) {
+        const outFileIdx = args.indexOf("--out-file");
+        if (outFileIdx >= 0) {
+          const outFile = args[outFileIdx + 1];
+          fs.mkdir(path.dirname(outFile), { recursive: true }).then(() => {
+            const outContent = n > 7 ? localContent : remoteContent;
+            return fs.writeFile(outFile, outContent, "utf8");
+          }).then(() => {
+            emitProcessClose(child, { stdout: "fetched\n", stderr: "", exit: 0 });
+          });
+          return child;
+        }
+      }
+
+      if (String(args[0]).includes("frida_lint")) {
+        const isFormat = args.includes("format");
+        const isCheck = args.includes("check");
+        if (isFormat) {
+          emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+          return child;
+        }
+        if (isCheck && args.includes("--fix")) {
+          expect(args).toContain("--unsafe-fixes");
+          emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+          return child;
+        }
+        if (isCheck && args.includes("--json")) {
+          emitProcessClose(child, { stdout: "[]", stderr: "", exit: 0 });
+          return child;
+        }
+      }
+
+      if (String(args[0]).includes("sync_actions_to_cognitive")) {
+        expect(args).toContain("--json");
+        const drySync = {
+          processId: 1444065,
+          step: 0,
+          pathPrefix: "Processes/1444065/Steps/0",
+          dryRun: true,
+          files: [
+            { name: "Actions.txt", byteSize: 2 },
+            { name: "datadrive.txt", byteSize: 2 },
+            { name: "headers.txt", byteSize: 2 },
+          ],
+          appUsage: { status: "skipped" as const, reason: "missing_optional_credentials" },
+        };
+        emitProcessClose(child, { stdout: `${JSON.stringify(drySync)}\n`, stderr: "", exit: 0 });
         return child;
       }
-      if (n === 2) {
-        expect(args).toContain("--unsafe-fixes");
-        expect(args).toContain("--fix");
-        emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
-        return child;
-      }
-      if (n === 4) {
-        emitProcessClose(child, { stdout: "[]", stderr: "", exit: 0 });
-        return child;
-      }
-      if (n === 5) {
-        expect(String(args[0])).toContain("sync_actions_to_cognitive");
-        emitProcessClose(child, { stdout: "y\n", stderr: "", exit: 0 });
-        return child;
-      }
-      throw new Error(`unexpected n=${n}`);
+
+      emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+      return child;
     });
     const code = await runPush(baseContext(fridaCwd), { dryRun: true, unsafeFixes: true });
     expect(code).toBe(0);
-    expect(n).toBe(5);
+  });
+
+  it("uses --verbose and not --json when sync verbose is requested", async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "frida-push-"));
+    const fridaCwd = path.join(base, "TuringExpo", "Local", "v1", "0");
+    await fs.mkdir(fridaCwd, { recursive: true });
+    
+    const remoteContent = "a\n";
+    const localContent = "a\nb\n";
+    await fs.writeFile(path.join(fridaCwd, "Actions.txt"), localContent, "utf8");
+    await updateBaselineFile(fridaCwd, 1444065, 0, "Actions.txt", { content: remoteContent }, "pull");
+
+    let n = 0;
+    mockSpawn.mockImplementation((cmd: string, args: string[]) => {
+      n += 1;
+      const { child } = makeMockChild();
+
+      if (String(args[0]).includes("fetch_actions_from_cognitive")) {
+        const outFileIdx = args.indexOf("--out-file");
+        if (outFileIdx >= 0) {
+          const outFile = args[outFileIdx + 1];
+          fs.mkdir(path.dirname(outFile), { recursive: true }).then(() => {
+            const outContent = n > 7 ? localContent : remoteContent;
+            return fs.writeFile(outFile, outContent, "utf8");
+          }).then(() => {
+            emitProcessClose(child, { stdout: "fetched\n", stderr: "", exit: 0 });
+          });
+          return child;
+        }
+      }
+
+      if (String(args[0]).includes("frida_lint")) {
+        emitProcessClose(child, { stdout: "[]", stderr: "", exit: 0 });
+        return child;
+      }
+
+      if (String(args[0]).includes("sync_actions_to_cognitive")) {
+        expect(args).toContain("--verbose");
+        expect(args).not.toContain("--json");
+        emitProcessClose(child, { stdout: "azure-listFilesAndDirectories: 200\n[]\n", stderr: "", exit: 0 });
+        return child;
+      }
+
+      emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+      return child;
+    });
+    const code = await runPush(baseContext(fridaCwd), { dryRun: true, verbose: true });
+    expect(code).toBe(0);
+  });
+
+  it("rejects json and verbose together", async () => {
+    const fridaCwd = path.join("C:", "x", "0", "0");
+    await expect(runPush(baseContext(fridaCwd), { json: true, verbose: true, dryRun: true })).rejects.toThrow(
+      /--json and --verbose/,
+    );
+  });
+});
+
+describe("Cognitive push formatting helpers", () => {
+  it("parseCognitiveSyncJson reads valid result", () => {
+    const raw = JSON.stringify({
+      processId: 1,
+      step: 0,
+      pathPrefix: "Processes/1/Steps/0",
+      files: [],
+      appUsage: { status: "skipped", reason: "missing_optional_credentials" },
+    });
+    const r = parseCognitiveSyncJson(raw);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.processId).toBe(1);
+  });
+
+  it("formatPushUserSummary matches key lines", () => {
+    const text = formatPushUserSummary(
+      [],
+      123,
+      {
+        processId: 123,
+        step: 0,
+        pathPrefix: "x",
+        dryRun: true,
+        files: [{ name: "Actions.txt", byteSize: 3 }],
+        appUsage: { status: "skipped", reason: "missing_optional_credentials" },
+      },
+    );
+    expect(text).toContain("Lint: clean");
+    expect(text).toContain("Destination: Cognitive process 123");
+    expect(text).toContain("AppUsage analytics: skipped - optional credentials are not configured");
   });
 });

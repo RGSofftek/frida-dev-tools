@@ -6,9 +6,9 @@ Downloads Actions.txt from Cognitive Testing Azure storage using the same API as
 (POST azure-getTxtFile with path + fileName). Overwrites local Actions.txt when not in dry-run.
 
 Usage (from project root):
-  python .cursor/tools/fetch_actions_from_cognitive.py
-  python .cursor/tools/fetch_actions_from_cognitive.py --dry-run
-  python .cursor/tools/fetch_actions_from_cognitive.py --backup
+  python resources/cli-tools/fetch_actions_from_cognitive.py
+  python resources/cli-tools/fetch_actions_from_cognitive.py --dry-run
+  python resources/cli-tools/fetch_actions_from_cognitive.py --backup
 
 Arguments:
   --dir PATH          Folder to write Actions.txt into (default: project root)
@@ -36,7 +36,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-# Project root (parent of .cursor/) when this file lives in .cursor/tools/.
+# Project root (parent of resources/) when this file lives in resources/cli-tools/.
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 AZURE_BASE = "https://us-central1-cognitive-testing.cloudfunctions.net"
@@ -100,9 +100,13 @@ def run(
     preserve_crlf: bool,
     backup: bool,
     preview_chars: int,
+    out_file: Path | None = None,
 ) -> None:
     text = fetch_actions_text(process_id=process_id, step=step, preserve_crlf=preserve_crlf)
-    out_path = base_dir / REMOTE_FILE_NAME
+    if out_file:
+        out_path = out_file
+    else:
+        out_path = base_dir / REMOTE_FILE_NAME
 
     if dry_run:
         n = len(text)
@@ -144,6 +148,7 @@ def main() -> None:
     parser.add_argument("--preserve-crlf", action="store_true")
     parser.add_argument("--backup", action="store_true", help="Save Actions.txt.bak before overwrite")
     parser.add_argument("--preview-chars", type=int, default=500, help="Dry-run preview length")
+    parser.add_argument("--out-file", type=Path, help="Write to this exact file instead of <dir>/Actions.txt")
     args = parser.parse_args()
 
     try:
@@ -155,6 +160,7 @@ def main() -> None:
             preserve_crlf=args.preserve_crlf,
             backup=args.backup,
             preview_chars=max(0, args.preview_chars),
+            out_file=args.out_file.resolve() if args.out_file else None,
         )
     except UnicodeDecodeError as e:
         raise SystemExit(f"Remote body is not valid UTF-8: {e}") from e

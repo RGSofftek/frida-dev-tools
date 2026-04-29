@@ -8,9 +8,9 @@ Problem:
   via W019, etc.) and can auto-fix many issues. Config is optional via .fridalintrc in the cwd.
 
 Usage (run from project root so imports and .fridalintrc resolve correctly):
-  python .cursor/tools/frida_lint.py check <file-or-glob> [<file-or-glob> ...]
-  python .cursor/tools/frida_lint.py format <file-or-glob> [<file-or-glob> ...]
-  python .cursor/tools/frida_lint.py rules [--json]   # documented rule catalog (no files)
+  python resources/cli-tools/frida_lint.py check <file-or-glob> [<file-or-glob> ...]
+  python resources/cli-tools/frida_lint.py format <file-or-glob> [<file-or-glob> ...]
+  python resources/cli-tools/frida_lint.py rules [--json]   # documented rule catalog (no files)
 
 Global options (before the subcommand):
   --config PATH     Use this JSON config instead of searching for .fridalintrc / .frida-lintrc
@@ -1462,7 +1462,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "rules":
-        # Allow `python path/to/frida_lint.py rules` when cwd is not .cursor/tools
+        # Allow `python path/to/frida_lint.py rules` when cwd is not resources/cli-tools
         _tools_dir = Path(__file__).resolve().parent
         if str(_tools_dir) not in sys.path:
             sys.path.insert(0, str(_tools_dir))

@@ -1,5 +1,5 @@
 """
-Regression tests for .cursor/tools/frida_lint.py (invoked via subprocess from repo root).
+Regression tests for resources/cli-tools/frida_lint.py (invoked via subprocess from repo root).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FRIDA_LINT = REPO_ROOT / ".cursor" / "tools" / "frida_lint.py"
+FRIDA_LINT = REPO_ROOT / "resources" / "cli-tools" / "frida_lint.py"
 
 
 def _run_lint(argv: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:

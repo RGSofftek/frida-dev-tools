@@ -6,7 +6,7 @@ This command **does not** wait for per-diagnostic approval (unlike `/frida-lint-
 
 ## Working directory
 
-Run every Python command from the **project root** (the folder that contains `Actions.txt` and `.cursor/tools/`).
+When calling the bundled scripts with `python`, use the path `resources/cli-tools/...` from the **frida-editor-tools** repository root. Set the **current working directory** to the FRIDA process step folder (where `Actions.txt` lives), or use `frida-rpa` from that folder (it resolves the installed tool paths for you).
 
 ## Target files (`<target>`)
 
@@ -17,13 +17,13 @@ Run every Python command from the **project root** (the folder that contains `Ac
 ## Step 1 – Format
 
 ```bash
-python .cursor/tools/frida_lint.py format [--follow-scripts] <target>
+python resources/cli-tools/frida_lint.py format [--follow-scripts] <target>
 ```
 
 ## Step 2 – Apply safe fixes
 
 ```bash
-python .cursor/tools/frida_lint.py check --fix [--follow-scripts] <target>
+python resources/cli-tools/frida_lint.py check --fix [--follow-scripts] <target>
 ```
 
 Use **`--unsafe-fixes`** only if the user explicitly asks for unsafe fixes in the same invocation.
@@ -33,13 +33,13 @@ Use **`--unsafe-fixes`** only if the user explicitly asks for unsafe fixes in th
 Safe fixes can leave lines that the formatter normalizes:
 
 ```bash
-python .cursor/tools/frida_lint.py format [--follow-scripts] <target>
+python resources/cli-tools/frida_lint.py format [--follow-scripts] <target>
 ```
 
 ## Step 4 – Verify before upload
 
 ```bash
-python .cursor/tools/frida_lint.py check --json [--follow-scripts] <target>
+python resources/cli-tools/frida_lint.py check --json [--follow-scripts] <target>
 ```
 
 - **Exit code 0**: proceed to sync.
@@ -52,14 +52,14 @@ Optional second pass (only if you still see only fixable noise after step 2): re
 Only after Step 4 succeeds:
 
 ```bash
-python .cursor/tools/sync_actions_to_cognitive.py
+python resources/cli-tools/sync_actions_to_cognitive.py
 ```
 
 Respect the user if they ask for **`--dry-run`** (print payloads only) or pass through other flags documented in `sync_actions_to_cognitive.py` (`--dir`, `--process-id`, `--step`, `--user-uuid`, `--app-usage-auth`, `--platform`, `--version`, `--no-sanitize`).
 
 **Environment variables** (when not overridden by flags): `COGNITIVE_USER_UUID`, `COGNITIVE_APP_USAGE_AUTH`, `COGNITIVE_PROCESS_ID`, `COGNITIVE_STEP_INDEX`, `COGNITIVE_PLATFORM`, `COGNITIVE_CLIENT_VERSION`. If sync fails for auth or missing files, report the error output clearly.
 
-To **pull** remote `Actions.txt` down after editing on Cognitive (opposite direction), use `python .cursor/tools/fetch_actions_from_cognitive.py` (see that script for `--dry-run` and `--backup`).
+To **pull** remote `Actions.txt` down after editing on Cognitive (opposite direction), use `python resources/cli-tools/fetch_actions_from_cognitive.py` (see that script for `--dry-run` and `--backup`).
 
 ## Summary
 

@@ -3,3 +3,5 @@ scripts/**
 tsconfig.json
 .gitignore
 **/*.map
+# Local Cursor workspace / subtree (do not ship with VSIX)
+.cursor/**

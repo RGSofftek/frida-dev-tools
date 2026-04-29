@@ -43,6 +43,8 @@ export interface CliOptions {
   helpTopic?: string;
   /** `lint info` / `lint rules` — print documented frida_lint rule catalog (no process folder required). */
   lintAction?: "check" | "info";
+  /** When set (e.g. for `push`/`sync`), pass `--verbose` to the Cognitive sync script. */
+  verbose: boolean;
 }
 
 export interface CliRunResult {
@@ -157,14 +159,16 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
     purpose: "Run lint-safe pipeline and sync to Cognitive when clean.",
     flags: [
       { name: "--dry-run", description: "Run checks and print sync payloads without upload." },
-      { name: "--json", description: "Emit machine-readable command output where supported." },
+      { name: "--json", description: "Emit `lint` + `sync` result as JSON; default push prints a human summary." },
+      { name: "--verbose", description: "Print legacy per-step Azure sync output instead of a summary." },
       { name: "--unsafe-fixes", description: "Run check --fix with unsafe auto-fixes before the final check." },
       { name: "--process-id <n>", description: "Override inferred process id." },
       { name: "--step <n>", description: "Override inferred step index." },
       { name: "[path]", description: "Folder with Actions.txt (TuringExpo/Local/<id>/<step>); default is current directory." },
     ],
     notes: [
-      "Pipeline: format -> check --fix -> format -> check --json -> upload.",
+      "Safety Guard: Push will fetch remote Actions.txt first and block upload if it differs from the last trusted baseline (i.e. remote drift).",
+      "Pipeline: remote preflight -> format -> check --fix -> format -> check --json -> remote lease check -> upload -> update baseline.",
       "Upload is blocked when the final check reports at least one error-severity issue (warnings do not block).",
       "Sync uploads from the given folder (or cwd); use the path if you are not already cd'd into the process folder.",
     ],
@@ -180,7 +184,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
     examples: ["frida-rpa sync"],
   },
   pull: {
-    purpose: "Fetch remote Actions.txt for inferred process/step.",
+    purpose: "Fetch remote Actions.txt for inferred process/step and update local baseline.",
     flags: [
       { name: "--backup", description: "Create Actions.txt.bak before overwrite." },
       { name: "--force", description: "Allow non-interactive overwrite mode." },
@@ -189,6 +193,9 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
       { name: "--step <n>", description: "Override inferred step index." },
       { name: "--json", description: "Emit machine-readable output where supported." },
       { name: "[path]", description: "Local folder to write Actions.txt; default is current directory." },
+    ],
+    notes: [
+      "After a successful pull, the fetched remote file's hash is recorded as the new baseline for future pushes.",
     ],
     examples: [
       "frida-rpa pull --backup",
@@ -362,6 +369,7 @@ export function parseArgs(argv: string[]): CliOptions {
     backup: false,
     force: false,
     unsafeFixes: false,
+    verbose: false,
   };
 
   let index = 0;
@@ -418,6 +426,7 @@ export function parseArgs(argv: string[]): CliOptions {
     if (token === "--init") { options.init = true; continue; }
     if (token === "--json") { options.json = true; continue; }
     if (token === "--unsafe-fixes") { options.unsafeFixes = true; continue; }
+    if (token === "--verbose") { options.verbose = true; continue; }
     if (token === "--backup") { options.backup = true; continue; }
     if (token === "--force") { options.force = true; continue; }
     if (token === "--editor") { const n = argv[index + 1]; if (n !== "cursor" && n !== "code") throw new Error("--editor requires one value: code or cursor"); options.editor = n; index += 1; continue; }
@@ -615,7 +624,15 @@ async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise
     }
     case "fix": return runFix(buildContext(options), { json: options.json, unsafeFixes: options.unsafeFixes });
     case "push":
-    case "sync": return runPush(buildContext(options), { json: options.json, dryRun: options.dryRun, unsafeFixes: options.unsafeFixes });
+    case "sync": {
+      if (options.json && options.verbose) {
+        throw new Error("Use only one of --json and --verbose.");
+      }
+      return runPush(
+        buildContext(options),
+        { json: options.json, dryRun: options.dryRun, unsafeFixes: options.unsafeFixes, verbose: options.verbose },
+      );
+    }
     case "pull": return runPull(buildContext(options), { json: options.json, backup: options.backup, force: options.force, dryRun: options.dryRun });
     case "agents": return runAgentsCommand(options);
     case "logs": {

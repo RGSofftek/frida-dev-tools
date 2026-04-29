@@ -86,7 +86,7 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "build:index": "python ./scripts/build_completion_index.py --docs ./.cursor/docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json",
+    "build:index": "python ./scripts/build_completion_index.py --docs ./resources/frida-docs --out ./resources/frida.completion.json --coverage ./resources/coverage-report.json",
     "test": "vitest run && pytest scripts/tests/",
     "test:ts": "vitest run",
     "test:py": "pytest scripts/tests/",

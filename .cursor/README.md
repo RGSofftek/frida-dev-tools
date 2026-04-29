@@ -46,7 +46,7 @@ git subtree push --prefix=.cursor frida-tooling main
 
 ## Tooling paths
 
-- Reader docs: `.cursor/docs/...`
-- Linter (from **project root**): `python .cursor/tools/frida_lint.py format|check ...`
+- Reader docs: `resources/frida-docs/...` (in the frida-editor-tools repo; completion index is built with `build:index`)
+- Linter (from **frida-editor-tools** repo root): `python resources/cli-tools/frida_lint.py format|check ...`
 
 Project root keeps `.fridalintrc` and other project-local files as today.

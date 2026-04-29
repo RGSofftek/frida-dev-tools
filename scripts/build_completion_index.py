@@ -15,7 +15,9 @@ from typing import Any
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build FRIDA completion index.")
-    parser.add_argument("--docs", required=True, help="Path to .cursor/docs directory")
+    parser.add_argument(
+        "--docs", required=True, help="Path to the FRIDA reader markdown directory (e.g. resources/frida-docs)"
+    )
     parser.add_argument("--out", required=True, help="Output JSON path")
     parser.add_argument(
         "--coverage",

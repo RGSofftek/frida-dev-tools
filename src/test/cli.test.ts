@@ -196,6 +196,12 @@ describe("parseArgs", () => {
     expect(result.workspaceArg).toBe("C:/FRIDA/TuringExpo/Local/1444065/0");
   });
 
+  it("parses --verbose for push", () => {
+    const v = parseArgs(["push", "--verbose", "C:/tmp/f"]);
+    expect(v.command).toBe("push");
+    expect(v.verbose).toBe(true);
+  });
+
   it("parses --unsafe-fixes for fix and push", () => {
     const fixR = parseArgs(["fix", "--unsafe-fixes", "C:/tmp/p"]);
     expect(fixR.command).toBe("fix");
@@ -240,7 +246,7 @@ describe("help rendering", () => {
   it("command help for push includes pipeline notes and examples", () => {
     const output = renderCommandHelp("push");
     expect(output).toContain("Purpose:");
-    expect(output).toContain("Pipeline: format");
+    expect(output).toContain("Pipeline: remote preflight -> format");
     expect(output).toContain("frida-rpa push");
     expect(output).toContain("warnings do not block");
   });
