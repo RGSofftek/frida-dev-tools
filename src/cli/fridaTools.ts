@@ -77,6 +77,8 @@ export interface PushOpts extends FixOpts {
   dryRun?: boolean;
   /** If true, pass `--verbose` to sync; prints legacy Azure per-step output instead of a summary. */
   verbose?: boolean;
+  /** If true, allow local Actions.txt to overwrite Cognitive when drift is detected. */
+  force?: boolean;
 }
 
 /** Parsed stdout from `sync_actions_to_cognitive.py --json` (Cognitive step sync). */
@@ -708,24 +710,40 @@ export async function runPush(context: FridaContext, opts: PushOpts = {}): Promi
       ? "No local baseline exists and remote differs from local. Please run `frida-rpa pull --backup` or review the changes manually before pushing."
       : "Cognitive Actions.txt changed since the last local pull/push.";
     
-    if (opts.json) {
-      process.stdout.write(JSON.stringify({
-        ok: false,
-        error: "Push blocked due to remote drift.",
-        blockReason: blockMessage,
-        localFile: path.join(context.cwd, "Actions.txt"),
-        remoteFile: remoteSidecarPath
-      }, null, 2) + "\n");
-      return 1; // Error exit code since json error is emitted
+    if (!opts.force) {
+      if (opts.json) {
+        process.stdout.write(JSON.stringify({
+          ok: false,
+          error: "Push blocked due to remote drift.",
+          blockReason: blockMessage,
+          localFile: path.join(context.cwd, "Actions.txt"),
+          remoteFile: remoteSidecarPath,
+          resolutionOptions: [
+            {
+              mode: "local_wins",
+              command: "frida-rpa push --force",
+              description: "Overwrite Cognitive with the current local Actions.txt after reviewing the drift diff.",
+            },
+            {
+              mode: "remote_wins_or_merge",
+              command: "frida-rpa pull --backup",
+              description: "Pull the Cognitive version (with backup), then merge manually and push.",
+            },
+          ],
+        }, null, 2) + "\n");
+        return 1; // Error exit code since json error is emitted
+      }
+
+      process.stderr.write(
+        `frida-rpa: push blocked\nReason: ${blockMessage}\n\n` +
+        `Local file:  ${path.join(context.cwd, "Actions.txt")}\n` +
+        `Remote copy: ${remoteSidecarPath}\n\n` +
+        "Choose one option:\n" +
+        "  1) Local wins (overwrite Cognitive): frida-rpa push --force\n" +
+        "  2) Remote wins / manual merge first: frida-rpa pull --backup\n"
+      );
+      throw new Error("Push blocked due to remote drift.");
     }
-    
-    process.stderr.write(
-      `frida-rpa: push blocked\nReason: ${blockMessage}\n\n` +
-      `Local file:  ${path.join(context.cwd, "Actions.txt")}\n` +
-      `Remote copy: ${remoteSidecarPath}\n\n` +
-      `Review the diff, resolve Actions.txt manually, then run frida-rpa push again.\n`
-    );
-    throw new Error("Push blocked due to remote drift.");
   }
 
   // 2. Format / check / fix (Linting pipeline)
@@ -818,11 +836,8 @@ export async function runPush(context: FridaContext, opts: PushOpts = {}): Promi
   // 4. Update baseline to the actual uploaded text
   if (!opts.dryRun) {
     try {
-      const postSyncFetch = await runPython(context.cwd, fetchArgs);
-      if (postSyncFetch.exitCode === 0) {
-        const postPushHash = await computeFileHash(remoteSidecarPath);
-        await updateBaselineFile(context.cwd, identifiers.processId, identifiers.step, "Actions.txt", { hash: postPushHash }, "push");
-      }
+      const finalLocalHash = await computeFileHash(path.join(context.cwd, "Actions.txt"));
+      await updateBaselineFile(context.cwd, identifiers.processId, identifiers.step, "Actions.txt", { hash: finalLocalHash }, "push");
     } catch (err: unknown) {
       process.stderr.write(`frida-rpa: warning: could not save post-push baseline: ${String(err)}\n`);
     }

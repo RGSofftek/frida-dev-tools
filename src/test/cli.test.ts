@@ -210,6 +210,12 @@ describe("parseArgs", () => {
     expect(pushR.command).toBe("push");
     expect(pushR.unsafeFixes).toBe(true);
   });
+
+  it("parses --force for push", () => {
+    const result = parseArgs(["push", "C:/FRIDA/TuringExpo/Local/1444065/0", "--force"]);
+    expect(result.command).toBe("push");
+    expect(result.force).toBe(true);
+  });
 });
 
 describe("buildContext", () => {
@@ -248,6 +254,8 @@ describe("help rendering", () => {
     expect(output).toContain("Purpose:");
     expect(output).toContain("Pipeline: remote preflight -> format");
     expect(output).toContain("frida-rpa push");
+    expect(output).toContain("frida-rpa push --force");
+    expect(output).toContain("allow local Actions.txt to overwrite Cognitive");
     expect(output).toContain("warnings do not block");
   });
 

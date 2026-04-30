@@ -11,7 +11,7 @@ import {
   formatPushUserSummary,
 } from "../cli/fridaTools";
 import type { FridaContext } from "../cli/context";
-import { updateBaselineFile } from "../cli/cognitiveBaseline";
+import { computeNormalizedHash, readBaseline, updateBaselineFile } from "../cli/cognitiveBaseline";
 
 const { mockSpawn } = vi.hoisted(() => {
   return { mockSpawn: vi.fn() as ReturnType<typeof vi.fn> };
@@ -339,6 +339,93 @@ describe("runPush (mocked python)", () => {
     await expect(runPush(baseContext(fridaCwd), { json: true, verbose: true, dryRun: true })).rejects.toThrow(
       /--json and --verbose/,
     );
+  });
+
+  it("blocks with actionable guidance when remote drift is detected and --force is not set", async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "frida-push-drift-"));
+    const fridaCwd = path.join(base, "TuringExpo", "Local", "drift", "0");
+    await fs.mkdir(fridaCwd, { recursive: true });
+    await fs.writeFile(path.join(fridaCwd, "Actions.txt"), "local\n", "utf8");
+    await updateBaselineFile(fridaCwd, 1444065, 0, "Actions.txt", { content: "baseline\n" }, "pull");
+
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+      const { child } = makeMockChild();
+      if (String(args[0]).includes("fetch_actions_from_cognitive")) {
+        const outFile = args[args.indexOf("--out-file") + 1];
+        fs.mkdir(path.dirname(outFile), { recursive: true })
+          .then(() => fs.writeFile(outFile, "remote\n", "utf8"))
+          .then(() => emitProcessClose(child, { stdout: "fetched\n", stderr: "", exit: 0 }));
+        return child;
+      }
+      emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+      return child;
+    });
+
+    await expect(runPush(baseContext(fridaCwd), { dryRun: true })).rejects.toThrow(/remote drift/);
+    const stderr = stderrSpy.mock.calls.map((entry) => String(entry[0])).join("");
+    expect(stderr).toContain("frida-rpa push --force");
+    expect(stderr).toContain("frida-rpa pull --backup");
+    stderrSpy.mockRestore();
+  });
+
+  it("allows push with --force on drift and updates baseline from final local hash", async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "frida-push-force-"));
+    const fridaCwd = path.join(base, "TuringExpo", "Local", "force", "0");
+    await fs.mkdir(fridaCwd, { recursive: true });
+
+    const baselineContent = "baseline\n";
+    const remoteContent = "remote-updated\n";
+    const localContent = "local-wins\n";
+    await fs.writeFile(path.join(fridaCwd, "Actions.txt"), localContent, "utf8");
+    await updateBaselineFile(fridaCwd, 1444065, 0, "Actions.txt", { content: baselineContent }, "pull");
+
+    let fetchCalls = 0;
+    mockSpawn.mockImplementation((_cmd: string, args: string[]) => {
+      const { child } = makeMockChild();
+      if (String(args[0]).includes("fetch_actions_from_cognitive")) {
+        fetchCalls += 1;
+        const outFile = args[args.indexOf("--out-file") + 1];
+        fs.mkdir(path.dirname(outFile), { recursive: true })
+          .then(() => fs.writeFile(outFile, remoteContent, "utf8"))
+          .then(() => emitProcessClose(child, { stdout: "fetched\n", stderr: "", exit: 0 }));
+        return child;
+      }
+      if (String(args[0]).includes("frida_lint")) {
+        const isCheckJson = args.includes("check") && args.includes("--json");
+        emitProcessClose(child, { stdout: isCheckJson ? "[]\n" : "", stderr: "", exit: 0 });
+        return child;
+      }
+      if (String(args[0]).includes("sync_actions_to_cognitive")) {
+        emitProcessClose(
+          child,
+          {
+            stdout: `${JSON.stringify({
+              processId: 1444065,
+              step: 0,
+              pathPrefix: "Processes/1444065/Steps/0",
+              files: [{ name: "Actions.txt", byteSize: localContent.length }],
+              appUsage: { status: "skipped", reason: "missing_optional_credentials" },
+            })}\n`,
+            stderr: "",
+            exit: 0,
+          },
+        );
+        return child;
+      }
+      emitProcessClose(child, { stdout: "", stderr: "", exit: 0 });
+      return child;
+    });
+
+    const code = await runPush(baseContext(fridaCwd), { force: true });
+    expect(code).toBe(0);
+    expect(fetchCalls).toBe(2); // preflight + lease; no post-push refetch
+
+    const baseline = await readBaseline(fridaCwd);
+    const localFinal = await fs.readFile(path.join(fridaCwd, "Actions.txt"), "utf8");
+    expect(baseline?.files["Actions.txt"]?.source).toBe("push");
+    expect(baseline?.files["Actions.txt"]?.sha256).toBe(computeNormalizedHash(localFinal));
+    expect(localFinal).toBe(localContent);
   });
 });
 

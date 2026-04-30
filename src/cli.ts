@@ -161,6 +161,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
       { name: "--dry-run", description: "Run checks and print sync payloads without upload." },
       { name: "--json", description: "Emit `lint` + `sync` result as JSON; default push prints a human summary." },
       { name: "--verbose", description: "Print legacy per-step Azure sync output instead of a summary." },
+      { name: "--force", description: "When remote drift is detected, allow local Actions.txt to overwrite Cognitive." },
       { name: "--unsafe-fixes", description: "Run check --fix with unsafe auto-fixes before the final check." },
       { name: "--process-id <n>", description: "Override inferred process id." },
       { name: "--step <n>", description: "Override inferred step index." },
@@ -176,6 +177,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
       "frida-rpa push",
       "frida-rpa push C:/FRIDA/TuringExpo/Local/1444065/0",
       "frida-rpa push --dry-run",
+      "frida-rpa push --force",
     ],
   },
   sync: {
@@ -630,7 +632,7 @@ async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise
       }
       return runPush(
         buildContext(options),
-        { json: options.json, dryRun: options.dryRun, unsafeFixes: options.unsafeFixes, verbose: options.verbose },
+        { json: options.json, dryRun: options.dryRun, unsafeFixes: options.unsafeFixes, verbose: options.verbose, force: options.force },
       );
     }
     case "pull": return runPull(buildContext(options), { json: options.json, backup: options.backup, force: options.force, dryRun: options.dryRun });
