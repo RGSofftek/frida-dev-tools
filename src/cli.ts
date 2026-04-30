@@ -12,15 +12,17 @@ import { renderBanner, renderCognitiveContextLine, renderCognitivePrompt, render
 import { createMaskedPrompt, getStoredSession, handleLoginFlow, handleLogoutFlow, SessionStoreResult } from "./cli/auth";
 import { runFix, runLint, runLintRulesInfo, runLogs, runPull, runPush } from "./cli/fridaTools";
 import { formatAgentsResultMessage, runAgentsImport } from "./cli/agents";
+import { runEstimateCommand } from "./cli/estimation";
 import { bootstrapCognitiveToken } from "./cli/cognitiveAuth";
 import { CognitiveClient } from "./cli/cognitiveClient";
 import { runCognitiveNavigation } from "./cli/cognitiveNav";
 
-export type CliCommand = "interactive" | "open" | "status" | "login" | "logout" | "lint" | "fix" | "push" | "sync" | "pull" | "logs" | "agents" | "cognitive" | "help";
+export type CliCommand = "interactive" | "open" | "status" | "login" | "logout" | "lint" | "fix" | "push" | "sync" | "pull" | "logs" | "agents" | "estimate" | "cognitive" | "help";
 export type LogsAction = "list" | "latest" | "get";
-export type CognitiveResource = "apps" | "suites" | "processes" | "logs" | "push" | "pull" | "nav";
+export type CognitiveResource = "apps" | "suites" | "processes" | "logs" | "push" | "pull" | "nav" | "login" | "logout";
 export type CognitiveAction = "list" | "create" | "latest" | "get";
 export type CognitiveUseTarget = "app" | "suite" | "process";
+export type EstimateAction = "generate" | "init" | "example";
 
 export interface CliOptions {
   command: CliCommand;
@@ -58,6 +60,9 @@ export interface CliOptions {
   processRef?: string;
   createName?: string;
   useTarget?: CognitiveUseTarget;
+  estimateAction?: EstimateAction;
+  estimateConfig?: string;
+  estimateOut?: string;
 }
 
 export interface CliRunResult {
@@ -84,7 +89,7 @@ type RunCommandHooks = {
   maskedQuestion?: PromptQuestion;
 };
 
-const HELP_ORDER: CliCommand[] = ["open", "status", "login", "logout", "lint", "fix", "push", "sync", "pull", "cognitive", "agents", "help"];
+const HELP_ORDER: CliCommand[] = ["open", "status", "login", "logout", "lint", "fix", "estimate", "cognitive", "agents", "help"];
 const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
   interactive: {
     purpose: "Start interactive shell (default when no command is passed).",
@@ -238,6 +243,27 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
       "frida-rpa agents --force --backup",
     ],
   },
+  estimate: {
+    purpose: "Generate estimation PPTX files from JSON config templates.",
+    flags: [
+      { name: "generate|init|example", description: "Estimate subcommand; defaults to `example` when omitted." },
+      { name: "--config <path>", description: "Config file for generate/example; if omitted for example, uses ./estimation_mock.json." },
+      { name: "--out <path>", description: "Output target (json for init, pptx for generate/example)." },
+      { name: "--force", description: "Allow overwriting default mock config file in cwd when needed." },
+      { name: "--json", description: "Emit machine-readable output where supported." },
+    ],
+    notes: [
+      "Default source template for mock config: estimation/example_config.json.",
+      "Default current-folder files: ./estimation_mock.json and ./estimation_mock.pptx.",
+      "Install dependencies: python -m pip install -r estimation/requirements.txt",
+    ],
+    examples: [
+      "frida-rpa estimate init",
+      "frida-rpa estimate example",
+      "frida-rpa estimate generate --config ./estimation_mock.json",
+      "frida-rpa estimate example --config ./my_estimation.json --out ./custom_output.pptx",
+    ],
+  },
   logs: {
     purpose: "Legacy logs command removed; use cognitive logs.",
     flags: [
@@ -248,7 +274,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
   cognitive: {
     purpose: "Cognitive domain commands for apps/suites/processes/logs, or enter cognitive shell.",
     flags: [
-      { name: "apps|suites|processes|logs|push|pull|nav", description: "Resource namespace. Omit to enter shell mode." },
+      { name: "apps|suites|processes|logs|push|pull|nav|login|logout", description: "Resource namespace. Omit to enter shell mode." },
       { name: "list|create|latest|get", description: "Resource action." },
       { name: "--name <value>", description: "Display name for create actions." },
       { name: "--app <id>", description: "App id for suites list/create." },
@@ -263,14 +289,18 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
     notes: [
       "Use `frida-rpa cognitive push|pull` as the canonical surface.",
       "Top-level `frida-rpa push|pull` remain as deprecated aliases.",
+      "Use `frida-rpa cognitive login|logout` to manage stored credentials in-namespace.",
       "Top-level `frida-rpa logs` is intentionally removed.",
     ],
     examples: [
       "frida-rpa cognitive",
+      "frida-rpa cognitive login",
+      "frida-rpa cognitive logout",
       "frida-rpa cognitive apps list",
       "frida-rpa cognitive nav",
       "frida-rpa cognitive suites create --app 3320302 --name \"My Suite\"",
       "frida-rpa cognitive processes list --suite 5640573",
+      "frida-rpa cognitive processes create --suite 5640573 --name \"My Process\"",
       "frida-rpa cognitive logs latest --process-id 1555960",
       "frida-rpa cognitive push",
     ],
@@ -286,26 +316,75 @@ export function renderGlobalHelp(): string {
   const lines: string[] = [
     "frida-rpa [command] [options]",
     "",
-    "Daily workflow: status -> lint -> fix -> push/pull",
+    "Quick start:",
+    "  One-time setup:",
+    "    frida-rpa login",
     "",
-    "Commands:",
+    "  Day-to-day:",
+    "    frida-rpa status",
+    "    frida-rpa lint",
+    "    frida-rpa fix",
+    "    frida-rpa cognitive push   (or: frida-rpa cognitive pull)",
+    "",
+    "Command groups:",
+    "",
+    "  Workspace setup",
   ];
-  for (const command of HELP_ORDER) {
-    lines.push(`  ${command.padEnd(8)} ${COMMAND_HELP[command].purpose}`);
-  }
+  lines.push(`    ${"open".padEnd(10)} ${COMMAND_HELP.open.purpose}`);
+  lines.push(`    ${"status".padEnd(10)} ${COMMAND_HELP.status.purpose}`);
+  lines.push(`    ${"agents".padEnd(10)} ${COMMAND_HELP.agents.purpose}`);
+  lines.push(`    ${"estimate".padEnd(10)} ${COMMAND_HELP.estimate.purpose}`);
+  lines.push("", "  Script quality");
+  lines.push(`    ${"lint".padEnd(10)} ${COMMAND_HELP.lint.purpose}`);
+  lines.push(`    ${"fix".padEnd(10)} ${COMMAND_HELP.fix.purpose}`);
+  lines.push("", "  Estimation");
+  lines.push(`    ${"estimate".padEnd(10)} ${COMMAND_HELP.estimate.purpose}`);
+  lines.push("", "  Cognitive cloud");
+  lines.push(`    ${"cognitive".padEnd(10)} ${COMMAND_HELP.cognitive.purpose}`);
+  lines.push(`    ${"login".padEnd(10)} One-time credential setup (run again only if credentials change).`);
+  lines.push(`    ${"logout".padEnd(10)} ${COMMAND_HELP.logout.purpose}`);
+  lines.push("", "  Help");
+  lines.push(`    ${"help".padEnd(10)} ${COMMAND_HELP.help.purpose}`);
   lines.push(
+    "",
+    "Daily workflow:",
+    "  status -> lint -> fix -> cognitive push/pull",
+    "",
+    "Common recipes:",
+    "  Upload current process:",
+    "    frida-rpa cognitive push",
+    "",
+    "  Pull latest remote Actions.txt:",
+    "    frida-rpa cognitive pull --backup",
+    "",
+    "  Explore cloud resources interactively:",
+    "    frida-rpa cognitive nav",
+    "",
+    "  Create mock estimation in current folder:",
+    "    frida-rpa estimate example",
+    "",
+    "  Get latest Cognitive run logs:",
+    "    frida-rpa cognitive logs latest --process-id <id>",
+    "",
+    "Context + flags:",
+    "  --process-id, --step  Use when process/step cannot be inferred from folder path.",
+    "  --json                Machine-readable output.",
+    "  --dry-run             Preview actions without changing remote/local state.",
+    "  --unsafe-fixes        Allow behavior-changing auto-fixes during fix/push.",
+    "  --force               Override safety checks where supported.",
+    "",
+    "Discover more:",
+    "  frida-rpa help cognitive",
+    "  frida-rpa help lint",
+    "  frida-rpa help open",
     "",
     "Flag groups:",
     "  Editor/workspace: --editor --patterns --settings-source --settings-mode --no-dev-host --init",
     "  Runtime/safety:   --process-id --step --json --unsafe-fixes --dry-run --backup --force",
     "",
-    "Examples:",
-    "  frida-rpa open .",
-    "  frida-rpa status",
-    "  frida-rpa help push",
-    "",
     "Interactive shell:",
-    "  Type exit or quit to close frida-rpa >",
+    "  Top-level shell: type exit or quit to close frida-rpa >",
+    "  Cognitive shell: run frida-rpa cognitive, then type help for in-namespace commands",
   );
   return lines.join("\n");
 }
@@ -351,6 +430,15 @@ export function formatCliError(error: unknown): string {
 export function commandRequiresLogin(command: CliCommand): boolean {
   const loginRequiredCommands = new Set<CliCommand>(["push", "sync", "pull", "cognitive"]);
   return loginRequiredCommands.has(command);
+}
+
+function optionsRequireLogin(options: CliOptions): boolean {
+  if (options.command !== "cognitive") return commandRequiresLogin(options.command);
+  // Allow entering shell and in-namespace auth commands even when signed out.
+  if (!options.cognitiveResource || options.cognitiveResource === "login" || options.cognitiveResource === "logout") {
+    return false;
+  }
+  return true;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
@@ -409,7 +497,7 @@ export function parseArgs(argv: string[]): CliOptions {
   const maybeCommand = argv[0];
     if (maybeCommand && !maybeCommand.startsWith("-")) {
     const normalized = maybeCommand.toLowerCase();
-    if (["open", "status", "login", "logout", "lint", "fix", "push", "sync", "pull", "logs", "agents", "cognitive", "help"].includes(normalized)) {
+    if (["open", "status", "login", "logout", "lint", "fix", "push", "sync", "pull", "logs", "agents", "estimate", "cognitive", "help"].includes(normalized)) {
       options.command = normalized as CliCommand;
       explicitCommand = options.command;
       index = 1;
@@ -437,7 +525,7 @@ export function parseArgs(argv: string[]): CliOptions {
       if (options.command === "cognitive") {
         if (!options.cognitiveResource) {
           const resource = token.toLowerCase();
-          if (["apps", "suites", "processes", "logs", "push", "pull", "nav"].includes(resource)) {
+          if (["apps", "suites", "processes", "logs", "push", "pull", "nav", "login", "logout"].includes(resource)) {
             options.cognitiveResource = resource as CognitiveResource;
             continue;
           }
@@ -454,6 +542,13 @@ export function parseArgs(argv: string[]): CliOptions {
         const sub = token.toLowerCase();
         if (sub === "info" || sub === "rules") {
           options.lintAction = "info";
+          continue;
+        }
+      }
+      if (options.command === "estimate" && !options.estimateAction) {
+        const sub = token.toLowerCase();
+        if (sub === "generate" || sub === "init" || sub === "example") {
+          options.estimateAction = sub as EstimateAction;
           continue;
         }
       }
@@ -493,6 +588,8 @@ export function parseArgs(argv: string[]): CliOptions {
     if (token === "--run-id") { const n = argv[index + 1]; if (!n) throw new Error("--run-id requires a value"); options.runId = n; index += 1; continue; }
     if (token === "--file") { const n = argv[index + 1]; if (!n) throw new Error("--file requires a value"); options.fileName = n; index += 1; continue; }
     if (token === "--out-dir") { const n = argv[index + 1]; if (!n) throw new Error("--out-dir requires a value"); options.outDir = n; index += 1; continue; }
+    if (token === "--config") { const n = argv[index + 1]; if (!n) throw new Error("--config requires a value"); options.estimateConfig = n; index += 1; continue; }
+    if (token === "--out") { const n = argv[index + 1]; if (!n) throw new Error("--out requires a value"); options.estimateOut = n; index += 1; continue; }
     throw new Error(`Unknown option: ${token}`);
   }
 
@@ -596,9 +693,16 @@ function requireValue(value: string | undefined, flag: string): string {
 }
 
 async function runCognitiveCommand(options: CliOptions): Promise<number> {
+  const resource = options.cognitiveResource;
+  if (resource === "login") {
+    return handleLoginFlow();
+  }
+  if (resource === "logout") {
+    return handleLogoutFlow();
+  }
+
   const auth = await bootstrapCognitiveToken();
   const client = new CognitiveClient(auth.token, auth.email);
-  const resource = options.cognitiveResource;
   const action = options.cognitiveAction;
 
   if (!resource) {
@@ -647,9 +751,10 @@ async function runCognitiveCommand(options: CliOptions): Promise<number> {
       return 0;
     }
     if (action === "create") {
-      requireValue(options.appId, "--app");
-      requireValue(options.createName, "--name");
-      throw new Error("suites create is not implemented yet: metadata/linkage endpoints are still required for list/UI visibility.");
+      const appId = requireValue(options.appId, "--app");
+      const name = requireValue(options.createName, "--name");
+      const created = await client.createSuite(appId, name);
+      return printOutput(options.json ? created : `Created suite ${created.name} (${created.suiteId}) in app ${created.appId}`, options.json), 0;
     }
   }
 
@@ -662,9 +767,10 @@ async function runCognitiveCommand(options: CliOptions): Promise<number> {
       return 0;
     }
     if (action === "create") {
-      requireValue(options.suiteId, "--suite");
-      requireValue(options.createName, "--name");
-      throw new Error("processes create is not implemented yet: metadata/linkage endpoints are still required for list/UI visibility.");
+      const suiteId = requireValue(options.suiteId, "--suite");
+      const name = requireValue(options.createName, "--name");
+      const created = await client.createProcess(suiteId, name);
+      return printOutput(options.json ? created : `Created process ${created.name} (${created.processId}) in suite ${created.suiteId}`, options.json), 0;
     }
   }
 
@@ -687,8 +793,40 @@ async function runCognitiveCommand(options: CliOptions): Promise<number> {
   throw new Error("Unsupported cognitive resource/action combination.");
 }
 
+export function renderCognitiveShellHelp(context: { appId?: string; suiteId?: string; processId?: string }): string {
+  return (
+    "Cognitive shell help\n" +
+    `Context: app=${context.appId ?? "-"}  suite=${context.suiteId ?? "-"}  process=${context.processId ?? "-"}\n` +
+    "\nExplore\n" +
+    "  apps list                              List available apps.\n" +
+    "  suites list --app <id>                 List suites for an app.\n" +
+    "  processes list [--suite <id>]          List processes (optionally filtered by suite).\n" +
+    "  logs list|latest|get                   List/download Cognitive run logs.\n" +
+    "\nSync\n" +
+    "  push                                   Upload local Actions.txt to current/inferred process.\n" +
+    "  pull                                   Download remote Actions.txt to local workspace.\n" +
+    "\nNavigation\n" +
+    "  nav                                    Open interactive apps/suites/processes navigator.\n" +
+    "\nSession\n" +
+    "  login                                  Set up credentials (usually one-time).\n" +
+    "  logout                                 Clear stored credentials.\n" +
+    "\nContext\n" +
+    "  use app <id>                           Set active app context.\n" +
+    "  use suite <id>                         Set active suite context.\n" +
+    "  use process <id>                       Set active process context.\n" +
+    "  context                                Show current app/suite/process context.\n" +
+    "  clear                                  Clear pinned context values.\n" +
+    "\nShell\n" +
+    "  help                                   Show this help.\n" +
+    "  exit                                   Leave cognitive shell.\n" +
+    "\nStatus\n" +
+    "  suites create --app <id> --name <n>      Create a suite scaffold in Cognitive.\n" +
+    "  processes create --suite <id> --name <n> Create a process scaffold in Cognitive.\n"
+  );
+}
+
 async function runCognitiveShell(_options: CliOptions, email: string): Promise<number> {
-  const rl = createInterface({ input, output });
+  let rl = createInterface({ input, output });
   let context: { appId?: string; suiteId?: string; processId?: string } = {};
   try {
     process.stdout.write(renderCognitiveShellHeader(email));
@@ -713,8 +851,13 @@ async function runCognitiveShell(_options: CliOptions, email: string): Promise<n
         if (target === "process") context = { ...context, processId: value };
         continue;
       }
+      if (line === "clear") {
+        context = {};
+        process.stdout.write("Cleared pinned context values.\n");
+        continue;
+      }
       if (line === "help") {
-        process.stdout.write("apps list|create --name <n>\nsuites list --app <id>\nsuites create --app <id> --name <n>\nprocesses list [--suite <id>]\nprocesses create --suite <id> --name <n>\nlogs list|latest|get\npush|pull\nnav\n");
+        process.stdout.write(renderCognitiveShellHelp(context));
         continue;
       }
       try {
@@ -723,7 +866,17 @@ async function runCognitiveShell(_options: CliOptions, email: string): Promise<n
         child.appId = child.appId ?? context.appId;
         child.suiteId = child.suiteId ?? context.suiteId;
         child.processRef = child.processRef ?? context.processId;
-        await runCognitiveCommand(child);
+        const needsExclusiveInput = child.cognitiveResource === "nav" || child.cognitiveResource === "login";
+        if (needsExclusiveInput) {
+          rl.close();
+        }
+        try {
+          await runCognitiveCommand(child);
+        } finally {
+          if (needsExclusiveInput) {
+            rl = createInterface({ input, output });
+          }
+        }
       } catch (error: unknown) {
         process.stderr.write(`${formatCliError(error)}\n`);
       }
@@ -805,7 +958,7 @@ async function runInteractive(options: CliOptions): Promise<number> {
 }
 
 async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise<number> {
-  if (commandRequiresLogin(options.command)) {
+  if (optionsRequireLogin(options)) {
     const session = await getStoredSession();
     if (!session) {
       throw new Error("Not logged in. Run 'frida-rpa login' first.");
@@ -848,6 +1001,14 @@ async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise
       process.stderr.write("frida-rpa warning: top-level `pull` is deprecated; use `frida-rpa cognitive pull`.\n");
       return runPull(buildContext(options), { json: options.json, backup: options.backup, force: options.force, dryRun: options.dryRun });
     case "agents": return runAgentsCommand(options);
+    case "estimate":
+      return runEstimateCommand({
+        action: options.estimateAction,
+        configPath: options.estimateConfig,
+        outPath: options.estimateOut,
+        force: options.force,
+        json: options.json,
+      });
     case "logs": throw new Error("Top-level logs command is deprecated. Use `frida-rpa cognitive logs ...`.");
     case "cognitive": return runCognitiveCommand(options);
     case "interactive": return runInteractive(options);

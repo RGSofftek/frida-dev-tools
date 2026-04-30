@@ -16,8 +16,18 @@ export interface CognitiveProcess {
   raw: JsonObject;
 }
 
+export interface CognitiveSuite {
+  suiteId: string;
+  name: string;
+  appId: string;
+}
+
 export class CognitiveClient {
   constructor(private readonly token: string, private readonly email: string) {}
+
+  private generateId(): string {
+    return `${Date.now()}`.slice(-7);
+  }
 
   private request(method: "GET" | "POST", url: string, body?: JsonObject, contentType = "text/plain;charset=UTF-8"): Promise<{ status: number; body: string }> {
     return new Promise((resolve, reject) => {
@@ -134,5 +144,26 @@ export class CognitiveClient {
       file: { name: "Actions.txt", content: initialActions },
     }, "application/json");
     if (writeRes.status !== 200) throw this.normalizeError(writeRes.status, writeRes.body, "azure-createTxtFile");
+  }
+
+  async createSuite(appId: string, name: string): Promise<CognitiveSuite> {
+    const app = (await this.listApps()).find((row) => row.appId === appId);
+    if (!app) {
+      throw new Error(`App ${appId} not found.`);
+    }
+    const suiteId = this.generateId();
+    await this.createAzureScaffold(suiteId, "Hello World");
+    return { suiteId, name, appId };
+  }
+
+  async createProcess(suiteId: string, name: string): Promise<{ processId: string; name: string; suiteId: string }> {
+    const apps = await this.listApps();
+    const suiteExists = apps.some((app) => Object.prototype.hasOwnProperty.call(app.suites, suiteId));
+    if (!suiteExists) {
+      throw new Error(`Suite ${suiteId} not found.`);
+    }
+    const processId = this.generateId();
+    await this.createAzureScaffold(processId, "Hello world");
+    return { processId, name, suiteId };
   }
 }

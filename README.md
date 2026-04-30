@@ -153,6 +153,9 @@ frida-rpa status
 frida-rpa login
 frida-rpa lint
 frida-rpa fix
+frida-rpa estimate init
+frida-rpa estimate example
+frida-rpa estimate generate --config ./estimation_mock.json
 frida-rpa push
 frida-rpa pull --backup
 frida-rpa
@@ -163,6 +166,7 @@ Help usage:
 ```bash
 frida-rpa --help
 frida-rpa help push
+frida-rpa help estimate
 ```
 
 Behavior:
@@ -182,6 +186,29 @@ Behavior:
 - In the interactive shell, use `exit` or `quit` to return to your terminal.
 - `login` stores a local CLI session marker, but current `pull`, `push`, and `sync` commands run through `resources/cli-tools` (invoked from the `frida-rpa` binary) and do not require that local login session.
 - `push` includes a freshness guard: it verifies the remote file has not changed since the last `pull` or `push` before uploading, preventing accidental overwrites. If the remote has changed, it blocks and suggests manual review.
+
+### Estimation Commands
+
+The `estimate` command group generates PowerPoint estimation decks from JSON configs.
+
+Install estimator dependencies:
+
+```bash
+python -m pip install -r estimation/requirements.txt
+```
+
+Mock estimation in the current folder:
+
+```bash
+frida-rpa estimate init
+frida-rpa estimate example
+```
+
+Details:
+- `frida-rpa estimate init` writes `./estimation_mock.json` in the current directory.
+- `frida-rpa estimate example` creates/uses `./estimation_mock.json` and writes `./estimation_mock.pptx` in the current directory by default.
+- The default template source config is `estimation/example_config.json`.
+- Use `--config` and `--out` to override defaults, for example: `frida-rpa estimate example --config ./my_estimation.json --out ./proposal.pptx`.
 
 Run focused TypeScript tests (including CLI tests):
 

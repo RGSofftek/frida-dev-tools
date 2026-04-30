@@ -9,6 +9,7 @@ import {
   formatCliResult,
   parseArgs,
   processInteractiveLineWithRecovery,
+  renderCognitiveShellHelp,
   renderCommandHelp,
   renderGlobalHelp,
   resolveExtensionDevPath,
@@ -120,6 +121,12 @@ describe("parseArgs", () => {
     expect(create.cognitiveAction).toBe("create");
     expect(create.appId).toBe("3320302");
     expect(create.createName).toBe("Suite A");
+
+    const processCreate = parseArgs(["cognitive", "processes", "create", "--suite", "5640573", "--name", "Process A"]);
+    expect(processCreate.cognitiveResource).toBe("processes");
+    expect(processCreate.cognitiveAction).toBe("create");
+    expect(processCreate.suiteId).toBe("5640573");
+    expect(processCreate.createName).toBe("Process A");
   });
 
   it("parses cognitive nav/push/pull entry points", () => {
@@ -136,6 +143,14 @@ describe("parseArgs", () => {
     expect(pull.command).toBe("cognitive");
     expect(pull.cognitiveResource).toBe("pull");
     expect(pull.backup).toBe(true);
+
+    const login = parseArgs(["cognitive", "login"]);
+    expect(login.command).toBe("cognitive");
+    expect(login.cognitiveResource).toBe("login");
+
+    const logout = parseArgs(["cognitive", "logout"]);
+    expect(logout.command).toBe("cognitive");
+    expect(logout.cognitiveResource).toBe("logout");
   });
 
   it("parses lint info and lint rules as documented rule catalog", () => {
@@ -220,6 +235,25 @@ describe("parseArgs", () => {
     expect(result.json).toBe(true);
   });
 
+  it("parses estimate subcommands and flags", () => {
+    const init = parseArgs(["estimate", "init", "--out", "./estimation_mock.json", "--force"]);
+    expect(init.command).toBe("estimate");
+    expect(init.estimateAction).toBe("init");
+    expect(init.estimateOut).toBe("./estimation_mock.json");
+    expect(init.force).toBe(true);
+
+    const example = parseArgs(["estimate", "example", "--json"]);
+    expect(example.command).toBe("estimate");
+    expect(example.estimateAction).toBe("example");
+    expect(example.json).toBe(true);
+
+    const generate = parseArgs(["estimate", "generate", "--config", "./cfg.json", "--out", "./out.pptx"]);
+    expect(generate.command).toBe("estimate");
+    expect(generate.estimateAction).toBe("generate");
+    expect(generate.estimateConfig).toBe("./cfg.json");
+    expect(generate.estimateOut).toBe("./out.pptx");
+  });
+
   it("parses push with workspace path as sync target folder", () => {
     const result = parseArgs(["push", "C:/FRIDA/TuringExpo/Local/1444065/0"]);
     expect(result.command).toBe("push");
@@ -270,13 +304,24 @@ describe("buildContext", () => {
 describe("help rendering", () => {
   it("global help includes command descriptions and flag groups", () => {
     const output = renderGlobalHelp();
-    expect(output).toContain("Daily workflow");
-    expect(output).toContain("status -> lint -> fix -> push/pull");
+    expect(output).toContain("Quick start:");
+    expect(output).toContain("One-time setup:");
+    expect(output).toContain("Day-to-day:");
+    expect(output).toContain("status -> lint -> fix -> cognitive push/pull");
     expect(output).toContain("open");
-    expect(output).toMatch(/\bagents\s+/);
+    expect(output).toContain("Command groups:");
+    expect(output).toContain("Workspace setup");
+    expect(output).toContain("Script quality");
+    expect(output).toContain("Cognitive cloud");
+    expect(output).not.toMatch(/\n\s+push\s+/);
+    expect(output).not.toMatch(/\n\s+pull\s+/);
     expect(output).toContain("Flag groups:");
+    expect(output).toContain("Common recipes:");
+    expect(output).toContain("Context + flags:");
+    expect(output).toContain("Discover more:");
     expect(output).toContain("--process-id");
-    expect(output).toContain("Type exit or quit to close frida-rpa >");
+    expect(output).toContain("Top-level shell:");
+    expect(output).toContain("Cognitive shell:");
   });
 
   it("command help for push includes pipeline notes and examples", () => {
@@ -314,10 +359,12 @@ describe("help rendering", () => {
 
   it("command help for cognitive describes domain commands", () => {
     const output = renderCommandHelp("cognitive");
-    expect(output).toContain("apps|suites|processes|logs|push|pull|nav");
+    expect(output).toContain("apps|suites|processes|logs|push|pull|nav|login|logout");
     expect(output).toContain("frida-rpa cognitive");
     expect(output).toContain("canonical surface");
     expect(output).toContain("frida-rpa cognitive nav");
+    expect(output).toContain("frida-rpa cognitive login");
+    expect(output).toContain("frida-rpa cognitive processes create --suite 5640573 --name \"My Process\"");
   });
 
   it("command help for login describes credential and session storage", () => {
@@ -333,6 +380,37 @@ describe("help rendering", () => {
     expect(output).toContain("AGENTS.md");
     expect(output).toContain("agent-docs");
     expect(output).toContain("frida-rpa agents");
+  });
+
+  it("command help for estimate includes cwd defaults and examples", () => {
+    const output = renderCommandHelp("estimate");
+    expect(output).toContain("Generate estimation PPTX files");
+    expect(output).toContain("generate|init|example");
+    expect(output).toContain("./estimation_mock.json");
+    expect(output).toContain("./estimation_mock.pptx");
+    expect(output).toContain("estimation/example_config.json");
+    expect(output).toContain("frida-rpa estimate example");
+    expect(output).toContain("frida-rpa estimate generate --config ./estimation_mock.json");
+  });
+});
+
+describe("cognitive shell help", () => {
+  it("renders grouped help with create command status", () => {
+    const output = renderCognitiveShellHelp({ appId: "10", suiteId: "20", processId: "30" });
+    expect(output).toContain("Cognitive shell help");
+    expect(output).toContain("Context: app=10  suite=20  process=30");
+    expect(output).toContain("\nExplore\n");
+    expect(output).toContain("\nSync\n");
+    expect(output).toContain("\nNavigation\n");
+    expect(output).toContain("\nSession\n");
+    expect(output).toContain("\nContext\n");
+    expect(output).toContain("\nShell\n");
+    expect(output).toContain("\nStatus\n");
+    expect(output).toContain("logs list|latest|get");
+    expect(output).toContain("nav");
+    expect(output).toContain("Create a suite scaffold in Cognitive");
+    expect(output).toContain("Create a process scaffold in Cognitive");
+    expect(output).toContain("clear");
   });
 });
 

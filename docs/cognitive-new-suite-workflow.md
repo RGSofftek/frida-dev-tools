@@ -82,6 +82,11 @@ Suite creation is implemented as Azure storage provisioning calls (not a single 
 - CORS preflight (`OPTIONS`) requests were issued for both Cloud Function endpoints.
 - No separate suite-metadata endpoint appeared in XHR/fetch during this creation action; list updated after provisioning and confirmation dialog.
 
+## CLI Command
+
+- `frida-rpa cognitive suites create --app <appId> --name "<suite name>"`
+- The CLI validates that `<appId>` exists, generates a 7-digit id from current timestamp, and runs the same 4-step Azure scaffold sequence above.
+
 ## CLI Reproduction Checklist
 
 - Choose/generate a numeric `processId`.

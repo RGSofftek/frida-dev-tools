@@ -1,0 +1,44 @@
+{
+  "cover": {
+    "year": "2026",
+    "automation_name": "Automatización de Solicitudes Firefighter en SAP GRC"
+  },
+  "understanding": {
+    "objectives": [
+      "Automatizar la creación de solicitudes de acceso Firefighter (FF) en SAP GRC",
+      "Reducir el esfuerzo manual y los tiempos de atención en la asignación de accesos",
+      "Asegurar consistencia en la captura de solicitudes y su registro para auditoría"
+    ],
+    "systems_tools": [
+      "SAP GRC (Interfaz Web)",
+      "CyberArk",
+      "Máquina Virtual (Ejecución del Bot)"
+    ],
+    "flowchart_image": "template/flow_test.png"
+  },
+  "complexity": {
+    "selected_level": "High"
+  },
+  "development_plan": {
+    "weeks": 7,
+    "tasks": {
+      "access_permits": { "start": 0, "end": 0 },
+      "process_analysis": { "start": 0, "end": 0 },
+      "process_doc": { "start": 0, "end": 0 },
+      "env_config": { "start": 1, "end": 1 },
+      "access_validation": { "start": 1, "end": 1 },
+      "automation_dev": { "start": 1, "end": 4 },
+      "test_data": { "start": 4, "end": 5 },
+      "unit_test": { "start": 4, "end": 5 },
+      "uat": { "start": 4, "end": 5 },
+      "manual": { "start": 5, "end": 6 },
+      "rollout": { "start": 5, "end": 6 },
+      "monitoring": { "start": 5, "end": 6 }
+    }
+  },
+  "economic_proposal": {
+    "development_cost": 9000,
+    "platform_cost_monthly": 950,
+    "support_cost_monthly": 400
+  }
+}

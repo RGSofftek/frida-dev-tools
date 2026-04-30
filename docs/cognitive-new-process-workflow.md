@@ -83,3 +83,8 @@ Creation was implemented with the same Azure scaffold pattern used in suite crea
   - ID: `4962233`
 - Observed default seed text for process creation in this flow was `Hello world` (lowercase `w`), while suite-level seed previously appeared as `Hello World` in that flow.
 - No additional dedicated `tests-createProcess` endpoint appeared in XHR/fetch for this action in this capture.
+
+## CLI Command
+
+- `frida-rpa cognitive processes create --suite <suiteId> --name "<process name>"`
+- The CLI validates that `<suiteId>` exists in current app/suite listings, generates a 7-digit id from current timestamp, and runs the same 4-step Azure scaffold sequence above.

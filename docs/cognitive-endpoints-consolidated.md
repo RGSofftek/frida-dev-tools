@@ -127,7 +127,7 @@ Last tested run:
 - `processId=7574307`
 - all four calls returned `200` + `true`
 
-Important: this tested sequence confirms storage scaffolding success. App-to-suite metadata linkage is handled by additional client-side Firebase logic in UI flows.
+Important: in current UI/network captures, this scaffold sequence alone produced visible suites/processes without a separate REST linkage endpoint.
 
 ### 6) Create process inside suite (UI `New Process`) - tested scope
 
@@ -152,6 +152,15 @@ Notes:
 
 - In this process flow capture, seed text was `Hello world` (lowercase `w`).
 - No separate dedicated `tests-createProcess` endpoint appeared in XHR/fetch for this action.
+
+## CLI usage (implemented)
+
+- Create app:
+  - `frida-rpa cognitive apps create --name "<app name>"`
+- Create suite in an app:
+  - `frida-rpa cognitive suites create --app <appId> --name "<suite name>"`
+- Create process in a suite:
+  - `frida-rpa cognitive processes create --suite <suiteId> --name "<process name>"`
 
 ## Latest verified run
 
