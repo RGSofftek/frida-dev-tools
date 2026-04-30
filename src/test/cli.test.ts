@@ -15,7 +15,7 @@ import {
   shouldUseDevHost,
 } from "../cli";
 import { createMaskedPrompt, getStoredSession, handleLoginFlow, handleLogoutFlow } from "../cli/auth";
-import { renderStatusPanel } from "../cli/ui";
+import { renderCognitiveContextLine, renderCognitivePrompt, renderStatusPanel } from "../cli/ui";
 import { detectEditor } from "../cli/launch";
 import { ensureWorkspaceSettings, mergeFridaPatterns } from "../cli/settings";
 
@@ -120,6 +120,22 @@ describe("parseArgs", () => {
     expect(create.cognitiveAction).toBe("create");
     expect(create.appId).toBe("3320302");
     expect(create.createName).toBe("Suite A");
+  });
+
+  it("parses cognitive nav/push/pull entry points", () => {
+    const nav = parseArgs(["cognitive", "nav"]);
+    expect(nav.command).toBe("cognitive");
+    expect(nav.cognitiveResource).toBe("nav");
+
+    const push = parseArgs(["cognitive", "push", "--dry-run"]);
+    expect(push.command).toBe("cognitive");
+    expect(push.cognitiveResource).toBe("push");
+    expect(push.dryRun).toBe(true);
+
+    const pull = parseArgs(["cognitive", "pull", "--backup"]);
+    expect(pull.command).toBe("cognitive");
+    expect(pull.cognitiveResource).toBe("pull");
+    expect(pull.backup).toBe(true);
   });
 
   it("parses lint info and lint rules as documented rule catalog", () => {
@@ -266,6 +282,8 @@ describe("help rendering", () => {
   it("command help for push includes pipeline notes and examples", () => {
     const output = renderCommandHelp("push");
     expect(output).toContain("Purpose:");
+    expect(output).toContain("DEPRECATED alias");
+    expect(output).toContain("frida-rpa cognitive push");
     expect(output).toContain("Pipeline: remote preflight -> format");
     expect(output).toContain("frida-rpa push");
     expect(output).toContain("frida-rpa push --force");
@@ -296,9 +314,10 @@ describe("help rendering", () => {
 
   it("command help for cognitive describes domain commands", () => {
     const output = renderCommandHelp("cognitive");
-    expect(output).toContain("apps|suites|processes|logs");
+    expect(output).toContain("apps|suites|processes|logs|push|pull|nav");
     expect(output).toContain("frida-rpa cognitive");
-    expect(output).toContain("Push and pull remain top-level commands");
+    expect(output).toContain("canonical surface");
+    expect(output).toContain("frida-rpa cognitive nav");
   });
 
   it("command help for login describes credential and session storage", () => {
@@ -818,5 +837,15 @@ describe("renderStatusPanel", () => {
       { compact: true },
     );
     expect(output).toBe("Cognitive    not signed in");
+  });
+});
+
+describe("cognitive UI", () => {
+  it("renders cognitive prompt and context line", () => {
+    expect(renderCognitivePrompt()).toContain("frida-rpa:cognitive");
+    const line = renderCognitiveContextLine({ appId: "1", suiteId: "2", processId: "3" });
+    expect(line).toContain("app=1");
+    expect(line).toContain("suite=2");
+    expect(line).toContain("process=3");
   });
 });

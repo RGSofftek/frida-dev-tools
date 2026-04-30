@@ -8,16 +8,17 @@ import { stdin as input, stdout as output } from "node:process";
 import { detectEditor, EditorName, openWorkspaceInEditor } from "./cli/launch";
 import { ensureWorkspaceSettings, SettingsResult } from "./cli/settings";
 import { detectFridaContext, formatContextSummary, FridaContext } from "./cli/context";
-import { renderBanner, renderPrompt, renderStatusPanel } from "./cli/ui";
+import { renderBanner, renderCognitiveContextLine, renderCognitivePrompt, renderCognitiveShellHeader, renderPrompt, renderStatusPanel } from "./cli/ui";
 import { createMaskedPrompt, getStoredSession, handleLoginFlow, handleLogoutFlow, SessionStoreResult } from "./cli/auth";
 import { runFix, runLint, runLintRulesInfo, runLogs, runPull, runPush } from "./cli/fridaTools";
 import { formatAgentsResultMessage, runAgentsImport } from "./cli/agents";
 import { bootstrapCognitiveToken } from "./cli/cognitiveAuth";
 import { CognitiveClient } from "./cli/cognitiveClient";
+import { runCognitiveNavigation } from "./cli/cognitiveNav";
 
 export type CliCommand = "interactive" | "open" | "status" | "login" | "logout" | "lint" | "fix" | "push" | "sync" | "pull" | "logs" | "agents" | "cognitive" | "help";
 export type LogsAction = "list" | "latest" | "get";
-export type CognitiveResource = "apps" | "suites" | "processes" | "logs";
+export type CognitiveResource = "apps" | "suites" | "processes" | "logs" | "push" | "pull" | "nav";
 export type CognitiveAction = "list" | "create" | "latest" | "get";
 export type CognitiveUseTarget = "app" | "suite" | "process";
 
@@ -168,7 +169,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
     ],
   },
   push: {
-    purpose: "Run lint-safe pipeline and sync to Cognitive when clean.",
+    purpose: "DEPRECATED alias for `frida-rpa cognitive push`.",
     flags: [
       { name: "--dry-run", description: "Run checks and print sync payloads without upload." },
       { name: "--json", description: "Emit `lint` + `sync` result as JSON; default push prints a human summary." },
@@ -180,6 +181,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
       { name: "[path]", description: "Folder with Actions.txt (TuringExpo/Local/<id>/<step>); default is current directory." },
     ],
     notes: [
+      "Deprecated: prefer `frida-rpa cognitive push`.",
       "Safety Guard: Push will fetch remote Actions.txt first and block upload if it differs from the last trusted baseline (i.e. remote drift).",
       "Pipeline: remote preflight -> format -> check --fix -> format -> check --json -> remote lease check -> upload -> update baseline.",
       "Upload is blocked when the final check reports at least one error-severity issue (warnings do not block).",
@@ -198,7 +200,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
     examples: ["frida-rpa sync"],
   },
   pull: {
-    purpose: "Fetch remote Actions.txt for inferred process/step and update local baseline.",
+    purpose: "DEPRECATED alias for `frida-rpa cognitive pull`.",
     flags: [
       { name: "--backup", description: "Create Actions.txt.bak before overwrite." },
       { name: "--force", description: "Allow non-interactive overwrite mode." },
@@ -209,6 +211,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
       { name: "[path]", description: "Local folder to write Actions.txt; default is current directory." },
     ],
     notes: [
+      "Deprecated: prefer `frida-rpa cognitive pull`.",
       "After a successful pull, the fetched remote file's hash is recorded as the new baseline for future pushes.",
     ],
     examples: [
@@ -245,7 +248,7 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
   cognitive: {
     purpose: "Cognitive domain commands for apps/suites/processes/logs, or enter cognitive shell.",
     flags: [
-      { name: "apps|suites|processes|logs", description: "Resource namespace. Omit to enter shell mode." },
+      { name: "apps|suites|processes|logs|push|pull|nav", description: "Resource namespace. Omit to enter shell mode." },
       { name: "list|create|latest|get", description: "Resource action." },
       { name: "--name <value>", description: "Display name for create actions." },
       { name: "--app <id>", description: "App id for suites list/create." },
@@ -258,15 +261,18 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
       { name: "--json", description: "Emit machine-readable output." },
     ],
     notes: [
-      "Push and pull remain top-level commands, but require frida-rpa login.",
+      "Use `frida-rpa cognitive push|pull` as the canonical surface.",
+      "Top-level `frida-rpa push|pull` remain as deprecated aliases.",
       "Top-level `frida-rpa logs` is intentionally removed.",
     ],
     examples: [
       "frida-rpa cognitive",
       "frida-rpa cognitive apps list",
+      "frida-rpa cognitive nav",
       "frida-rpa cognitive suites create --app 3320302 --name \"My Suite\"",
       "frida-rpa cognitive processes list --suite 5640573",
       "frida-rpa cognitive logs latest --process-id 1555960",
+      "frida-rpa cognitive push",
     ],
   },
   help: {
@@ -431,7 +437,7 @@ export function parseArgs(argv: string[]): CliOptions {
       if (options.command === "cognitive") {
         if (!options.cognitiveResource) {
           const resource = token.toLowerCase();
-          if (["apps", "suites", "processes", "logs"].includes(resource)) {
+          if (["apps", "suites", "processes", "logs", "push", "pull", "nav"].includes(resource)) {
             options.cognitiveResource = resource as CognitiveResource;
             continue;
           }
@@ -598,6 +604,19 @@ async function runCognitiveCommand(options: CliOptions): Promise<number> {
   if (!resource) {
     return runCognitiveShell(options, auth.email);
   }
+  if (resource === "nav") {
+    await runCognitiveNavigation(client, auth.email);
+    return 0;
+  }
+  if (resource === "push") {
+    return runPush(
+      buildContext(options),
+      { json: options.json, dryRun: options.dryRun, unsafeFixes: options.unsafeFixes, verbose: options.verbose, force: options.force },
+    );
+  }
+  if (resource === "pull") {
+    return runPull(buildContext(options), { json: options.json, backup: options.backup, force: options.force, dryRun: options.dryRun });
+  }
   if (!action) {
     throw new Error("Missing cognitive action. Use list/create/latest/get.");
   }
@@ -672,10 +691,11 @@ async function runCognitiveShell(_options: CliOptions, email: string): Promise<n
   const rl = createInterface({ input, output });
   let context: { appId?: string; suiteId?: string; processId?: string } = {};
   try {
-    process.stdout.write(`Cognitive shell for ${email}\n`);
+    process.stdout.write(renderCognitiveShellHeader(email));
     process.stdout.write("Type `help` for cognitive commands or `exit`.\n");
     while (true) {
-      const line = (await rl.question("frida-rpa:cognitive> ")).trim();
+      process.stdout.write(renderCognitiveContextLine(context));
+      const line = (await rl.question(renderCognitivePrompt())).trim();
       if (!line) continue;
       if (line === "exit" || line === "quit") break;
       if (line === "context") {
@@ -694,19 +714,19 @@ async function runCognitiveShell(_options: CliOptions, email: string): Promise<n
         continue;
       }
       if (line === "help") {
-        process.stdout.write("apps list|create --name <n>\nsuites list --app <id>\nsuites create --app <id> --name <n>\nprocesses list [--suite <id>]\nprocesses create --suite <id> --name <n>\nlogs list|latest|get\npush|pull\n");
+        process.stdout.write("apps list|create --name <n>\nsuites list --app <id>\nsuites create --app <id> --name <n>\nprocesses list [--suite <id>]\nprocesses create --suite <id> --name <n>\nlogs list|latest|get\npush|pull\nnav\n");
         continue;
       }
-      const parts = line.split(/\s+/);
-      if (parts[0] === "push" || parts[0] === "pull") {
-        await runCommand(parseArgs(parts));
-        continue;
+      try {
+        const parts = line.split(/\s+/);
+        const child = parseArgs(["cognitive", ...parts]);
+        child.appId = child.appId ?? context.appId;
+        child.suiteId = child.suiteId ?? context.suiteId;
+        child.processRef = child.processRef ?? context.processId;
+        await runCognitiveCommand(child);
+      } catch (error: unknown) {
+        process.stderr.write(`${formatCliError(error)}\n`);
       }
-      const child = parseArgs(["cognitive", ...parts]);
-      child.appId = child.appId ?? context.appId;
-      child.suiteId = child.suiteId ?? context.suiteId;
-      child.processRef = child.processRef ?? context.processId;
-      await runCognitiveCommand(child);
     }
   } finally {
     rl.close();
@@ -813,6 +833,9 @@ async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise
     case "fix": return runFix(buildContext(options), { json: options.json, unsafeFixes: options.unsafeFixes });
     case "push":
     case "sync": {
+      if (options.command === "push") {
+        process.stderr.write("frida-rpa warning: top-level `push` is deprecated; use `frida-rpa cognitive push`.\n");
+      }
       if (options.json && options.verbose) {
         throw new Error("Use only one of --json and --verbose.");
       }
@@ -821,7 +844,9 @@ async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise
         { json: options.json, dryRun: options.dryRun, unsafeFixes: options.unsafeFixes, verbose: options.verbose, force: options.force },
       );
     }
-    case "pull": return runPull(buildContext(options), { json: options.json, backup: options.backup, force: options.force, dryRun: options.dryRun });
+    case "pull":
+      process.stderr.write("frida-rpa warning: top-level `pull` is deprecated; use `frida-rpa cognitive pull`.\n");
+      return runPull(buildContext(options), { json: options.json, backup: options.backup, force: options.force, dryRun: options.dryRun });
     case "agents": return runAgentsCommand(options);
     case "logs": throw new Error("Top-level logs command is deprecated. Use `frida-rpa cognitive logs ...`.");
     case "cognitive": return runCognitiveCommand(options);

@@ -59,6 +59,21 @@ export function renderPrompt(): string {
   return `${applyColor("frida-rpa", `${color.bright}${color.pink}`)} ${applyColor(">", color.blue)} `;
 }
 
+export function renderCognitivePrompt(): string {
+  return `${applyColor("frida-rpa:cognitive", `${color.bright}${color.blue}`)} ${applyColor(">", color.pink)} `;
+}
+
+export function renderCognitiveShellHeader(email: string): string {
+  return `${applyColor("Cognitive shell", `${color.bright}${color.blue}`)} for ${applyColor(email, color.white)}\n`;
+}
+
+export function renderCognitiveContextLine(context: { appId?: string; suiteId?: string; processId?: string }): string {
+  const app = context.appId ?? "-";
+  const suite = context.suiteId ?? "-";
+  const processId = context.processId ?? "-";
+  return `${applyColor("context", color.dim)} app=${applyColor(app, color.white)} suite=${applyColor(suite, color.white)} process=${applyColor(processId, color.white)}\n`;
+}
+
 function cognitiveStatus(summary: ContextSummary): string {
   return `Cognitive    ${summary.auth === "signed_in" ? `signed in${summary.userEmail ? ` as ${summary.userEmail}` : ""}` : "not signed in"}`;
 }
