@@ -12,9 +12,14 @@ import { renderBanner, renderPrompt, renderStatusPanel } from "./cli/ui";
 import { createMaskedPrompt, getStoredSession, handleLoginFlow, handleLogoutFlow, SessionStoreResult } from "./cli/auth";
 import { runFix, runLint, runLintRulesInfo, runLogs, runPull, runPush } from "./cli/fridaTools";
 import { formatAgentsResultMessage, runAgentsImport } from "./cli/agents";
+import { bootstrapCognitiveToken } from "./cli/cognitiveAuth";
+import { CognitiveClient } from "./cli/cognitiveClient";
 
-export type CliCommand = "interactive" | "open" | "status" | "login" | "logout" | "lint" | "fix" | "push" | "sync" | "pull" | "logs" | "agents" | "help";
+export type CliCommand = "interactive" | "open" | "status" | "login" | "logout" | "lint" | "fix" | "push" | "sync" | "pull" | "logs" | "agents" | "cognitive" | "help";
 export type LogsAction = "list" | "latest" | "get";
+export type CognitiveResource = "apps" | "suites" | "processes" | "logs";
+export type CognitiveAction = "list" | "create" | "latest" | "get";
+export type CognitiveUseTarget = "app" | "suite" | "process";
 
 export interface CliOptions {
   command: CliCommand;
@@ -45,6 +50,13 @@ export interface CliOptions {
   lintAction?: "check" | "info";
   /** When set (e.g. for `push`/`sync`), pass `--verbose` to the Cognitive sync script. */
   verbose: boolean;
+  cognitiveResource?: CognitiveResource;
+  cognitiveAction?: CognitiveAction;
+  appId?: string;
+  suiteId?: string;
+  processRef?: string;
+  createName?: string;
+  useTarget?: CognitiveUseTarget;
 }
 
 export interface CliRunResult {
@@ -71,7 +83,7 @@ type RunCommandHooks = {
   maskedQuestion?: PromptQuestion;
 };
 
-const HELP_ORDER: CliCommand[] = ["open", "status", "login", "logout", "lint", "fix", "push", "sync", "pull", "logs", "agents", "help"];
+const HELP_ORDER: CliCommand[] = ["open", "status", "login", "logout", "lint", "fix", "push", "sync", "pull", "cognitive", "agents", "help"];
 const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
   interactive: {
     purpose: "Start interactive shell (default when no command is passed).",
@@ -224,25 +236,37 @@ const COMMAND_HELP: Record<CliCommand, CommandDoc> = {
     ],
   },
   logs: {
-    purpose: "List and download Cognitive run logs via network requests.",
+    purpose: "Legacy logs command removed; use cognitive logs.",
     flags: [
-      { name: "list|latest|get", description: "Logs action (default: list)." },
-      { name: "--process-id <n>", description: "Override inferred process id." },
-      { name: "--user-email <email>", description: "Cognitive user email folder (defaults to session email)." },
-      { name: "--run-id <id|latest>", description: "Run folder id for get/list details." },
-      { name: "--file <name>", description: "Specific file in Result folder (default: newest log-*.txt)." },
-      { name: "--out-dir <path>", description: "Download root directory (default: logs)." },
-      { name: "--limit <n>", description: "Max runs returned by list (default: 20)." },
+      { name: "(none)", description: "Use `frida-rpa cognitive logs ...`." },
+    ],
+    examples: ["frida-rpa cognitive logs list"],
+  },
+  cognitive: {
+    purpose: "Cognitive domain commands for apps/suites/processes/logs, or enter cognitive shell.",
+    flags: [
+      { name: "apps|suites|processes|logs", description: "Resource namespace. Omit to enter shell mode." },
+      { name: "list|create|latest|get", description: "Resource action." },
+      { name: "--name <value>", description: "Display name for create actions." },
+      { name: "--app <id>", description: "App id for suites list/create." },
+      { name: "--suite <id>", description: "Suite id for process list/create." },
+      { name: "--process <id>", description: "Process id (shell use/context)." },
+      { name: "--run-id <id|latest>", description: "Run id for logs get/list details." },
+      { name: "--file <name>", description: "Specific log file for logs get." },
+      { name: "--out-dir <path>", description: "Download root folder for logs get/latest." },
+      { name: "--limit <n>", description: "Max runs returned by logs list (default 20)." },
       { name: "--json", description: "Emit machine-readable output." },
     ],
     notes: [
-      "Downloads are saved under <out-dir>/<processId>/<runId>/<fileName>.",
-      "Uses captured Cloud Function endpoints; does not require Microsoft login flow.",
+      "Push and pull remain top-level commands, but require frida-rpa login.",
+      "Top-level `frida-rpa logs` is intentionally removed.",
     ],
     examples: [
-      "frida-rpa logs list",
-      "frida-rpa logs latest --process-id 1555960",
-      "frida-rpa logs get --run-id 2026041622085624 --file ERROR.txt",
+      "frida-rpa cognitive",
+      "frida-rpa cognitive apps list",
+      "frida-rpa cognitive suites create --app 3320302 --name \"My Suite\"",
+      "frida-rpa cognitive processes list --suite 5640573",
+      "frida-rpa cognitive logs latest --process-id 1555960",
     ],
   },
   help: {
@@ -319,7 +343,7 @@ export function formatCliError(error: unknown): string {
 }
 
 export function commandRequiresLogin(command: CliCommand): boolean {
-  const loginRequiredCommands = new Set<CliCommand>([]);
+  const loginRequiredCommands = new Set<CliCommand>(["push", "sync", "pull", "cognitive"]);
   return loginRequiredCommands.has(command);
 }
 
@@ -379,7 +403,7 @@ export function parseArgs(argv: string[]): CliOptions {
   const maybeCommand = argv[0];
     if (maybeCommand && !maybeCommand.startsWith("-")) {
     const normalized = maybeCommand.toLowerCase();
-    if (["open", "status", "login", "logout", "lint", "fix", "push", "sync", "pull", "logs", "agents", "help"].includes(normalized)) {
+    if (["open", "status", "login", "logout", "lint", "fix", "push", "sync", "pull", "logs", "agents", "cognitive", "help"].includes(normalized)) {
       options.command = normalized as CliCommand;
       explicitCommand = options.command;
       index = 1;
@@ -403,6 +427,22 @@ export function parseArgs(argv: string[]): CliOptions {
         }
         options.logsAction = token.toLowerCase() as LogsAction;
         continue;
+      }
+      if (options.command === "cognitive") {
+        if (!options.cognitiveResource) {
+          const resource = token.toLowerCase();
+          if (["apps", "suites", "processes", "logs"].includes(resource)) {
+            options.cognitiveResource = resource as CognitiveResource;
+            continue;
+          }
+        }
+        if (options.cognitiveResource && !options.cognitiveAction) {
+          const action = token.toLowerCase();
+          if (["list", "create", "latest", "get"].includes(action)) {
+            options.cognitiveAction = action as CognitiveAction;
+            continue;
+          }
+        }
       }
       if (options.command === "lint" && !options.lintAction) {
         const sub = token.toLowerCase();
@@ -438,6 +478,11 @@ export function parseArgs(argv: string[]): CliOptions {
     if (token === "--process-id") { options.processId = parseIntFlag("--process-id", argv[index + 1]); index += 1; continue; }
     if (token === "--step") { options.step = parseIntFlag("--step", argv[index + 1]); index += 1; continue; }
     if (token === "--limit") { options.limit = parseIntFlag("--limit", argv[index + 1]); index += 1; continue; }
+    if (token === "--name") { const n = argv[index + 1]; if (!n) throw new Error("--name requires a value"); options.createName = n; index += 1; continue; }
+    if (token === "--app") { const n = argv[index + 1]; if (!n) throw new Error("--app requires a value"); options.appId = n; index += 1; continue; }
+    if (token === "--suite") { const n = argv[index + 1]; if (!n) throw new Error("--suite requires a value"); options.suiteId = n; index += 1; continue; }
+    if (token === "--process") { const n = argv[index + 1]; if (!n) throw new Error("--process requires a value"); options.processRef = n; index += 1; continue; }
+    if (token === "--use") { const n = argv[index + 1]; if (!n || !["app", "suite", "process"].includes(n)) throw new Error("--use requires app|suite|process"); options.useTarget = n as CognitiveUseTarget; index += 1; continue; }
     if (token === "--user-email") { const n = argv[index + 1]; if (!n) throw new Error("--user-email requires a value"); options.userEmail = n; index += 1; continue; }
     if (token === "--run-id") { const n = argv[index + 1]; if (!n) throw new Error("--run-id requires a value"); options.runId = n; index += 1; continue; }
     if (token === "--file") { const n = argv[index + 1]; if (!n) throw new Error("--file requires a value"); options.fileName = n; index += 1; continue; }
@@ -531,6 +576,144 @@ async function runAgentsCommand(options: CliOptions): Promise<number> {
   return 0;
 }
 
+function printOutput(data: unknown, json: boolean): void {
+  if (json) {
+    process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
+    return;
+  }
+  process.stdout.write(`${String(data)}\n`);
+}
+
+function requireValue(value: string | undefined, flag: string): string {
+  if (!value) throw new Error(`Missing required ${flag}.`);
+  return value;
+}
+
+async function runCognitiveCommand(options: CliOptions): Promise<number> {
+  const auth = await bootstrapCognitiveToken();
+  const client = new CognitiveClient(auth.token, auth.email);
+  const resource = options.cognitiveResource;
+  const action = options.cognitiveAction;
+
+  if (!resource) {
+    return runCognitiveShell(options, auth.email);
+  }
+  if (!action) {
+    throw new Error("Missing cognitive action. Use list/create/latest/get.");
+  }
+
+  if (resource === "apps") {
+    if (action === "list") {
+      const apps = await client.listApps();
+      if (options.json) return printOutput({ apps }, true), 0;
+      process.stdout.write(`Apps (${apps.length})\n`);
+      for (const app of apps) process.stdout.write(`- ${app.appId}  ${app.name}\n`);
+      return 0;
+    }
+    if (action === "create") {
+      const created = await client.createApp(requireValue(options.createName, "--name"));
+      return printOutput(options.json ? created : `Created app ${created.name} (${created.appId})`, options.json), 0;
+    }
+  }
+
+  if (resource === "suites") {
+    if (action === "list") {
+      const appId = requireValue(options.appId, "--app");
+      const app = (await client.listApps()).find((a) => a.appId === appId);
+      if (!app) throw new Error(`App ${appId} not found.`);
+      const suites = Object.entries(app.suites).map(([suiteId, name]) => ({ suiteId, name }));
+      if (options.json) return printOutput({ appId, suites }, true), 0;
+      process.stdout.write(`Suites in app ${appId} (${suites.length})\n`);
+      for (const suite of suites) process.stdout.write(`- ${suite.suiteId}  ${suite.name}\n`);
+      return 0;
+    }
+    if (action === "create") {
+      requireValue(options.appId, "--app");
+      requireValue(options.createName, "--name");
+      throw new Error("suites create is not implemented yet: metadata/linkage endpoints are still required for list/UI visibility.");
+    }
+  }
+
+  if (resource === "processes") {
+    if (action === "list") {
+      const processes = await client.listProcesses(options.suiteId);
+      if (options.json) return printOutput({ processes }, true), 0;
+      process.stdout.write(`Processes (${processes.length})\n`);
+      for (const p of processes) process.stdout.write(`- ${p.processId}  ${p.name}\n`);
+      return 0;
+    }
+    if (action === "create") {
+      requireValue(options.suiteId, "--suite");
+      requireValue(options.createName, "--name");
+      throw new Error("processes create is not implemented yet: metadata/linkage endpoints are still required for list/UI visibility.");
+    }
+  }
+
+  if (resource === "logs") {
+    const context = buildContext(options);
+    const processId = options.processId ?? context.processId;
+    if (!processId) throw new Error("Could not infer process id from folder. Use --process-id.");
+    return runLogs(context, {
+      action: (action === "latest" || action === "get") ? action : "list",
+      processId,
+      userEmail: auth.email,
+      runId: options.runId,
+      fileName: options.fileName,
+      outDir: options.outDir,
+      limit: options.limit,
+      json: options.json,
+    });
+  }
+
+  throw new Error("Unsupported cognitive resource/action combination.");
+}
+
+async function runCognitiveShell(_options: CliOptions, email: string): Promise<number> {
+  const rl = createInterface({ input, output });
+  let context: { appId?: string; suiteId?: string; processId?: string } = {};
+  try {
+    process.stdout.write(`Cognitive shell for ${email}\n`);
+    process.stdout.write("Type `help` for cognitive commands or `exit`.\n");
+    while (true) {
+      const line = (await rl.question("frida-rpa:cognitive> ")).trim();
+      if (!line) continue;
+      if (line === "exit" || line === "quit") break;
+      if (line === "context") {
+        process.stdout.write(`${JSON.stringify(context, null, 2)}\n`);
+        continue;
+      }
+      if (line.startsWith("use ")) {
+        const [, target, value] = line.split(/\s+/);
+        if (!target || !value || !["app", "suite", "process"].includes(target)) {
+          process.stdout.write("Usage: use app|suite|process <id>\n");
+          continue;
+        }
+        if (target === "app") context = { ...context, appId: value };
+        if (target === "suite") context = { ...context, suiteId: value };
+        if (target === "process") context = { ...context, processId: value };
+        continue;
+      }
+      if (line === "help") {
+        process.stdout.write("apps list|create --name <n>\nsuites list --app <id>\nsuites create --app <id> --name <n>\nprocesses list [--suite <id>]\nprocesses create --suite <id> --name <n>\nlogs list|latest|get\npush|pull\n");
+        continue;
+      }
+      const parts = line.split(/\s+/);
+      if (parts[0] === "push" || parts[0] === "pull") {
+        await runCommand(parseArgs(parts));
+        continue;
+      }
+      const child = parseArgs(["cognitive", ...parts]);
+      child.appId = child.appId ?? context.appId;
+      child.suiteId = child.suiteId ?? context.suiteId;
+      child.processRef = child.processRef ?? context.processId;
+      await runCognitiveCommand(child);
+    }
+  } finally {
+    rl.close();
+  }
+  return 0;
+}
+
 export async function processInteractiveLine(
   line: string,
   runParsedCommand: (options: CliOptions, hooks?: RunCommandHooks) => Promise<number>,
@@ -582,7 +765,7 @@ async function runInteractive(options: CliOptions): Promise<number> {
       const commandName = next.trim().split(/\s+/)[0]?.toLowerCase();
       let action: InteractiveDisposition;
 
-      if (commandName === "login") {
+      if (commandName === "login" || commandName === "cognitive") {
         rl.close();
         action = await processInteractiveLineWithRecovery(next, runCommand);
         rl = createInterface({ input, output });
@@ -603,7 +786,10 @@ async function runInteractive(options: CliOptions): Promise<number> {
 
 async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise<number> {
   if (commandRequiresLogin(options.command)) {
-    throw new Error("Not logged in. Run 'frida-rpa login' first.");
+    const session = await getStoredSession();
+    if (!session) {
+      throw new Error("Not logged in. Run 'frida-rpa login' first.");
+    }
   }
   switch (options.command) {
     case "help": {
@@ -637,27 +823,8 @@ async function runCommand(options: CliOptions, hooks?: RunCommandHooks): Promise
     }
     case "pull": return runPull(buildContext(options), { json: options.json, backup: options.backup, force: options.force, dryRun: options.dryRun });
     case "agents": return runAgentsCommand(options);
-    case "logs": {
-      const context = buildContext(options);
-      if (context.processId === undefined) {
-        throw new Error("Could not infer process id from folder. Use --process-id.");
-      }
-      const session = await getStoredSession();
-      const userEmail = options.userEmail ?? session?.email ?? process.env.COGNITIVE_USER_EMAIL;
-      if (!userEmail) {
-        throw new Error("Could not determine Cognitive user email. Use --user-email or run login first.");
-      }
-      return runLogs(context, {
-        action: options.logsAction ?? "list",
-        processId: context.processId,
-        userEmail,
-        runId: options.runId,
-        fileName: options.fileName,
-        outDir: options.outDir,
-        limit: options.limit,
-        json: options.json,
-      });
-    }
+    case "logs": throw new Error("Top-level logs command is deprecated. Use `frida-rpa cognitive logs ...`.");
+    case "cognitive": return runCognitiveCommand(options);
     case "interactive": return runInteractive(options);
     default: return 1;
   }

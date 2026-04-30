@@ -108,6 +108,20 @@ describe("parseArgs", () => {
     expect(result.userEmail).toBe("user@example.com");
   });
 
+  it("parses cognitive namespace commands", () => {
+    const list = parseArgs(["cognitive", "apps", "list", "--json"]);
+    expect(list.command).toBe("cognitive");
+    expect(list.cognitiveResource).toBe("apps");
+    expect(list.cognitiveAction).toBe("list");
+    expect(list.json).toBe(true);
+
+    const create = parseArgs(["cognitive", "suites", "create", "--app", "3320302", "--name", "Suite A"]);
+    expect(create.cognitiveResource).toBe("suites");
+    expect(create.cognitiveAction).toBe("create");
+    expect(create.appId).toBe("3320302");
+    expect(create.createName).toBe("Suite A");
+  });
+
   it("parses lint info and lint rules as documented rule catalog", () => {
     const info = parseArgs(["lint", "info"]);
     expect(info.command).toBe("lint");
@@ -274,12 +288,17 @@ describe("help rendering", () => {
     expect(output).toContain("Alias for push");
   });
 
-  it("command help for logs includes actions and output folder", () => {
+  it("command help for logs points to cognitive logs", () => {
     const output = renderCommandHelp("logs");
-    expect(output).toContain("List and download Cognitive run logs");
-    expect(output).toContain("list|latest|get");
-    expect(output).toContain("out-dir");
-    expect(output).toContain("<out-dir>/<processId>/<runId>/<fileName>");
+    expect(output).toContain("Legacy logs command removed");
+    expect(output).toContain("frida-rpa cognitive logs");
+  });
+
+  it("command help for cognitive describes domain commands", () => {
+    const output = renderCommandHelp("cognitive");
+    expect(output).toContain("apps|suites|processes|logs");
+    expect(output).toContain("frida-rpa cognitive");
+    expect(output).toContain("Push and pull remain top-level commands");
   });
 
   it("command help for login describes credential and session storage", () => {
@@ -299,10 +318,11 @@ describe("help rendering", () => {
 });
 
 describe("command auth policy", () => {
-  it("does not require login for pull/push/sync", () => {
-    expect(commandRequiresLogin("pull")).toBe(false);
-    expect(commandRequiresLogin("push")).toBe(false);
-    expect(commandRequiresLogin("sync")).toBe(false);
+  it("requires login for cognitive, pull, push, and sync", () => {
+    expect(commandRequiresLogin("pull")).toBe(true);
+    expect(commandRequiresLogin("push")).toBe(true);
+    expect(commandRequiresLogin("sync")).toBe(true);
+    expect(commandRequiresLogin("cognitive")).toBe(true);
   });
 });
 
