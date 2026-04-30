@@ -12,9 +12,55 @@ import json
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 AZURE_BASE = "https://us-central1-cognitive-testing.cloudfunctions.net"
 ORIGIN = "https://cognitivetesting.online"
+LARGE_LOG_THRESHOLD_BYTES = 20 * 1024 * 1024
+
+
+def _parse_content_length(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if text.isdigit():
+            return int(text)
+    return None
+
+
+def _format_large_file_http_500_message(
+    *,
+    process_id: int,
+    user_email: str,
+    run_id: str,
+    result_path: str,
+    file_name: str,
+    content_length: int | None,
+) -> str:
+    lines: list[str] = [
+        f"HTTP 500 for {AZURE_BASE}/azure-getTxtFile",
+        "",
+        "Log download failed while fetching a Cognitive result file.",
+        f"Process: {process_id}",
+        f"User: {user_email}",
+        f"Run: {run_id}",
+        f"File: {file_name}",
+        f"Path: {result_path}/{file_name}",
+    ]
+    if content_length is not None:
+        size_mb = content_length / (1024 * 1024)
+        lines.append(f"File size: {content_length} bytes ({size_mb:.2f} MB)")
+    lines.extend(
+        [
+            "",
+            "The endpoint likely failed server-side due to large text payload size or timeout.",
+            "Try one of these commands:",
+            f"  frida-rpa logs list --process-id {process_id} --run-id latest --json",
+            f"  frida-rpa logs get --process-id {process_id} --run-id <older-run-id>",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _post_json(url: str, payload: object, *, timeout: float = 60.0) -> tuple[int, str]:
@@ -85,12 +131,17 @@ def run(
         selected_run = runs[0]
 
     result_path = f"{process_user_path}/{selected_run}/Result"
-    files = [
-        item.get("name", "")
+    file_entries = [
+        {
+            "name": item.get("name", ""),
+            "contentLength": _parse_content_length((item.get("properties") or {}).get("contentLength")),
+        }
         for item in _list_dir(result_path)
         if item.get("kind") == "file" and isinstance(item.get("name"), str)
     ]
-    files.sort()
+    file_entries.sort(key=lambda item: item["name"])
+    files = [entry["name"] for entry in file_entries]
+    file_by_name = {entry["name"]: entry for entry in file_entries}
 
     chosen_file = file_name
     if not chosen_file:
@@ -102,7 +153,26 @@ def run(
     if chosen_file not in files:
         raise SystemExit(f"File {chosen_file!r} not found in {result_path}")
 
-    text = _get_txt(result_path, chosen_file)
+    selected_file = file_by_name.get(chosen_file, {"name": chosen_file, "contentLength": None})
+    selected_size = _parse_content_length(selected_file.get("contentLength"))
+
+    try:
+        text = _get_txt(result_path, chosen_file)
+    except SystemExit as exc:
+        err = str(exc)
+        is_http_500 = "HTTP 500" in err and "azure-getTxtFile" in err
+        if is_http_500 and selected_size is not None and selected_size >= LARGE_LOG_THRESHOLD_BYTES:
+            raise SystemExit(
+                _format_large_file_http_500_message(
+                    process_id=process_id,
+                    user_email=user_email,
+                    run_id=selected_run,
+                    result_path=result_path,
+                    file_name=chosen_file,
+                    content_length=selected_size,
+                )
+            ) from exc
+        raise
     output_path = out_dir / str(process_id) / selected_run / chosen_file
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(text, encoding="utf-8", newline="\n")
